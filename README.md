@@ -2,7 +2,7 @@
 
 A modular Python-based platform for extracting financial data, performing fundamental and technical analysis, and simulating algorithmic trading strategies through local financial modeling tools.
 
-## 🚀 Features
+## Features
 
 This repository is a comprehensive suite of tools for quantitative finance and algorithmic trading. It includes:
 
@@ -115,7 +115,7 @@ cd market_simulator
 python engine.py
 ```
 
-## 📌 Project Status
+## Project Status
 
 __Last Completed ✅:__ Planning, Initial Development & primary README.md file.
 
