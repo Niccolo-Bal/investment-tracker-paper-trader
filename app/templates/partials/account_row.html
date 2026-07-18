@@ -1,0 +1,23 @@
+<a class="account-row account-theme-{{ account.type }}" href="{{ url_for('pages.account_detail', account_id=account.id) }}">
+  <div>
+    <div class="account-row__name">{{ account.name }}</div>
+  </div>
+  <div>
+    <span class="account-row__stat-label">Value</span>
+    <span class="account-row__stat-value">
+      <span data-money="{{ account.equity if account.equity is not none else '' }}"></span>
+      {% if account.total_pnl_pct is not none %}
+        <span class="account-row__stat-sub" data-pct="{{ account.total_pnl_pct }}"></span>
+      {% endif %}
+    </span>
+  </div>
+  <div>
+    <span class="account-row__stat-label">Day P&amp;L</span>
+    <span class="account-row__stat-value">
+      <span data-signed-money="{{ account.day_change if account.day_change is not none else '' }}"></span>
+      {% if account.day_change_pct is not none %}
+        <span class="account-row__stat-sub" data-pct="{{ account.day_change_pct }}"></span>
+      {% endif %}
+    </span>
+  </div>
+</a>
