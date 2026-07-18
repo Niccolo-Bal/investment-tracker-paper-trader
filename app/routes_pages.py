@@ -14,15 +14,54 @@ pages_bp = Blueprint("pages", __name__)
 def dashboard():
     accounts = account_svc.list_accounts()
     summaries = [account_svc.account_summary(a) for a in accounts]
-    total_equity = sum(s["equity"] or 0 for s in summaries)
-    total_pnl = sum(s["total_pnl"] or 0 for s in summaries if s["total_pnl"] is not None)
-    open_positions = sum(len(s["positions"]) for s in summaries)
+    real_accounts = [s for s in summaries if s["type"] == "real"]
+    paper_accounts = [s for s in summaries if s["type"] == "paper"]
+
+    real_value = 0.0
+    real_day_change = 0.0
+    real_pnl = 0.0
+    real_invested = 0.0
+    real_priced = True
+    real_day_priced = True
+    real_return_priced = True
+    for account in real_accounts:
+        if account["equity"] is None:
+            real_priced = False
+        else:
+            real_value += account["equity"]
+        if account["day_change"] is None:
+            if account["positions"]:
+                real_day_priced = False
+        else:
+            real_day_change += account["day_change"]
+        if account["total_pnl"] is None:
+            if account["positions"]:
+                real_return_priced = False
+        else:
+            real_pnl += account["total_pnl"]
+        real_invested += account["invested"] or 0.0
+
+    real_total = round(real_value, 2) if real_priced or not real_accounts else None
+    real_day = round(real_day_change, 2) if real_day_priced or not real_accounts else None
+    prev_real = (real_total - real_day) if real_total is not None and real_day is not None else None
+    real_day_pct = (
+        round(real_day / prev_real * 100.0, 2) if prev_real else None
+    )
+    real_total_pct = (
+        round(real_pnl / real_invested * 100.0, 2)
+        if real_return_priced and real_invested
+        else None
+    )
+
     return render_template(
         "dashboard.html",
-        accounts=summaries,
-        total_equity=total_equity,
-        total_pnl=total_pnl,
-        open_positions=open_positions,
+        real_accounts=real_accounts,
+        paper_accounts=paper_accounts,
+        has_accounts=bool(summaries),
+        real_total=real_total,
+        real_total_pct=real_total_pct,
+        real_day_change=real_day,
+        real_day_change_pct=real_day_pct,
     )
 
 
@@ -34,7 +73,6 @@ def account_new():
                 name=request.form.get("name", ""),
                 account_type=request.form.get("type", ""),
                 starting_cash=float(request.form.get("starting_cash") or 0),
-                reference_cash=float(request.form.get("reference_cash") or 0),
             )
             flash("Account created.", "success")
             return redirect(url_for("pages.account_detail", account_id=account.id))
@@ -64,6 +102,16 @@ def account_detail(account_id: int):
         account=summary,
         recent=[account_svc.serialize_transaction(t) for t in recent],
     )
+
+
+@pages_bp.post("/accounts/<int:account_id>/delete")
+def account_delete(account_id: int):
+    account = account_svc.get_account(account_id)
+    if account is None:
+        abort(404)
+    account_svc.delete_account(account)
+    flash("Account deleted.", "success")
+    return redirect(url_for("pages.dashboard"))
 
 
 @pages_bp.route("/accounts/<int:account_id>/buy", methods=["GET", "POST"])

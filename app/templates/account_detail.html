@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ account.name }} · Meridian Ledger{% endblock %}
+{% block title %}{{ account.name }}{% endblock %}
 {% block body_class %}account-theme-{{ account.type }}{% endblock %}
 
 {% block content %}
@@ -7,16 +7,8 @@
   <div>
     <div class="account-header__eyebrow">
       <span class="badge badge-{{ account.type }}">{{ account.type }}</span>
-      <span>Account</span>
     </div>
     <h1>{{ account.name }}</h1>
-    <p class="muted">
-      {% if account.type == 'paper' %}
-        Paper portfolio with live market fills.
-      {% else %}
-        Real holdings tracked by manual cost basis.
-      {% endif %}
-    </p>
   </div>
   <div class="account-actions">
     <a class="btn btn-primary" href="{{ url_for('pages.buy', account_id=account.id) }}">Buy</a>
@@ -26,6 +18,13 @@
       <a class="btn btn-secondary" href="{{ url_for('pages.orders', account_id=account.id) }}">Orders</a>
     {% endif %}
     <a class="btn btn-secondary" href="{{ url_for('pages.ledger', account_id=account.id) }}">Ledger</a>
+    <form
+      method="post"
+      action="{{ url_for('pages.account_delete', account_id=account.id) }}"
+      onsubmit="return confirm('Delete this account and all of its data?');"
+    >
+      <button class="btn btn-danger" type="submit">Delete account</button>
+    </form>
   </div>
 </header>
 
@@ -42,25 +41,20 @@
     </div>
     {% else %}
     <div class="metric">
-      <span class="metric__label">Reference cash</span>
-      <span class="metric__value" data-money="{{ account.reference_cash }}"></span>
+      <span class="metric__label">Cost basis</span>
+      <span class="metric__value" data-money="{{ account.cost_basis }}"></span>
     </div>
     {% endif %}
     <div class="metric">
-      <span class="metric__label">Unrealized P&amp;L</span>
-      <span class="metric__value" data-signed-money="{{ account.unrealized_pnl if account.unrealized_pnl is not none else '' }}"></span>
-    </div>
-    <div class="metric">
-      <span class="metric__label">Realized P&amp;L</span>
-      <span class="metric__value" data-signed-money="{{ account.realized_pnl }}"></span>
+      <span class="metric__label">P&amp;L</span>
+      <span class="metric__value" data-signed-money="{{ account.total_pnl if account.total_pnl is not none else '' }}"></span>
     </div>
   </div>
 </section>
 
 <section class="section">
   <div class="section__head">
-    <h2>Performance</h2>
-    <span class="muted">Realized P&amp;L from closed trades</span>
+    <h2>{% if account.type == 'real' %}Portfolio value{% else %}Performance{% endif %}</h2>
   </div>
   <div class="chart-panel">
     <canvas id="pnl-chart" height="220"></canvas>
@@ -109,8 +103,7 @@
   {% else %}
   <div class="empty">
     <h3>No holdings yet</h3>
-    <p>{% if account.type == 'paper' %}Place a buy order to put cash to work.{% else %}Record a purchase with your average cost and share count.{% endif %}</p>
-    <a class="btn btn-primary" href="{{ url_for('pages.buy', account_id=account.id) }}">Buy securities</a>
+    <a class="btn btn-primary" href="{{ url_for('pages.buy', account_id=account.id) }}">Buy</a>
   </div>
   {% endif %}
 </section>
@@ -149,8 +142,7 @@
   </div>
   {% else %}
   <div class="empty">
-    <h3>Ledger is empty</h3>
-    <p>Buys, sells, and cash movements will appear here.</p>
+    <h3>No activity yet</h3>
   </div>
   {% endif %}
 </section>
@@ -161,57 +153,84 @@
 <script>
   (async function () {
     const accountId = {{ account.id }};
+    const isPaper = {{ 'true' if account.type == 'paper' else 'false' }};
     const canvas = document.getElementById("pnl-chart");
     if (!canvas || !window.Chart) return;
     try {
-      const data = await Api.get(`/api/accounts/${accountId}/transactions`);
-      const sells = (data.transactions || [])
-        .filter((t) => t.type === "sell" && t.realized_pnl != null)
-        .slice()
-        .reverse();
-      const labels = [];
-      const values = [];
-      let running = 0;
-      if (!sells.length) {
-        labels.push("Start");
-        values.push(0);
-      } else {
-        labels.push("Start");
-        values.push(0);
+      let labels;
+      let values;
+      let datasetLabel;
+
+      if (isPaper) {
+        const data = await Api.get(`/api/accounts/${accountId}/transactions`);
+        const sells = (data.transactions || [])
+          .filter((t) => t.type === "sell" && t.realized_pnl != null)
+          .slice()
+          .reverse();
+        labels = ["Start"];
+        values = [0];
+        let running = 0;
         for (const t of sells) {
           running += Number(t.realized_pnl);
           labels.push(t.symbol || "Sell");
           values.push(Number(running.toFixed(2)));
         }
+        datasetLabel = "Cumulative realized P&L";
+      } else {
+        const data = await Api.get(`/api/accounts/${accountId}/history`);
+        const points = data.history?.points || [];
+        if (!points.length) {
+          canvas.parentElement.innerHTML = '<p class="muted">No dated trades to chart.</p>';
+          return;
+        }
+        labels = points.map((point) =>
+          new Date(`${point.date}T00:00:00`).toLocaleDateString()
+        );
+        values = points.map((point) => point.value);
+        datasetLabel = "Portfolio value";
       }
-      const accent = document.body.classList.contains("account-theme-paper") ? "#3a4f8c" : "#1f6b4a";
+
+      const accent = isPaper ? "#4f46e5" : "#059669";
+      const fill = isPaper ? "rgba(79, 70, 229, 0.10)" : "rgba(5, 150, 105, 0.10)";
       new Chart(canvas, {
         type: "line",
         data: {
           labels,
           datasets: [{
-            label: "Cumulative realized P&L",
+            label: datasetLabel,
             data: values,
             borderColor: accent,
-            backgroundColor: "rgba(26, 58, 87, 0.08)",
+            backgroundColor: fill,
             fill: true,
             tension: 0.25,
-            pointRadius: 3,
+            pointRadius: isPaper ? 3 : 0,
+            pointHoverRadius: 4,
+            pointBackgroundColor: accent,
           }],
         },
         options: {
           responsive: true,
+          interaction: {
+            mode: "index",
+            intersect: false,
+          },
           plugins: {
             legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (context) => `${datasetLabel}: ${Fmt.money(context.parsed.y)}`,
+              },
+            },
           },
           scales: {
             x: {
               grid: { display: false },
-              ticks: { color: "#6b7c8f" },
+              ticks: { color: "#64748b" },
             },
             y: {
+              grid: { color: "rgba(226, 232, 240, 0.8)" },
               ticks: {
-                color: "#6b7c8f",
+                color: "#64748b",
                 callback: (v) => Fmt.money(v),
               },
             },

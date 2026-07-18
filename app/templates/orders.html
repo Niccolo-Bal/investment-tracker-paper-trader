@@ -10,7 +10,6 @@
       <a href="{{ url_for('pages.account_detail', account_id=account.id) }}">{{ account.name }}</a>
     </div>
     <h1>Orders</h1>
-    <p class="muted">Open limit orders are checked against live quotes when you load this page.</p>
   </div>
   <div class="account-actions">
     <a class="btn btn-secondary" href="{{ url_for('pages.buy', account_id=account.id) }}">New buy</a>
@@ -105,7 +104,6 @@
   {% else %}
   <div class="empty">
     <h3>No orders yet</h3>
-    <p>Limit orders you place will appear here until filled or cancelled.</p>
   </div>
   {% endif %}
 </section>

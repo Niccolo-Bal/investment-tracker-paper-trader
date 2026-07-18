@@ -1,9 +1,9 @@
 .account-theme-real .metric {
-  border-top-color: var(--real-accent);
+  border-left-color: var(--real-accent);
 }
 
 .account-theme-paper .metric {
-  border-top-color: var(--paper-accent);
+  border-left-color: var(--paper-accent);
 }
 
 .account-row.account-theme-real {
@@ -20,30 +20,37 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.35rem;
 }
 
 .account-header h1 {
-  margin: 0.35rem 0 0.25rem;
-  font-family: var(--font-display);
-  font-size: clamp(1.8rem, 3.5vw, 2.4rem);
-  color: var(--navy-950);
+  margin: 0.25rem 0 0;
+  font-family: var(--font-ui);
+  font-size: clamp(1.5rem, 3vw, 1.9rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
 }
 
 .account-header__eyebrow {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.78rem;
-  letter-spacing: 0.06em;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--slate-500);
+  color: var(--ink-secondary);
 }
 
 .account-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.45rem;
+}
+
+.account-actions form {
+  display: inline-flex;
+  margin: 0;
 }
 
 .account-theme-real .btn-primary {
@@ -52,8 +59,8 @@
 }
 
 .account-theme-real .btn-primary:hover {
-  background: #18563b;
-  border-color: #18563b;
+  background: #047857;
+  border-color: #047857;
 }
 
 .account-theme-paper .btn-primary {
@@ -62,13 +69,15 @@
 }
 
 .account-theme-paper .btn-primary:hover {
-  background: #2f4175;
-  border-color: #2f4175;
+  background: #4338ca;
+  border-color: #4338ca;
 }
 
 .symbol-chip {
   display: inline-block;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  color: var(--navy-900);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.88rem;
+  letter-spacing: 0.02em;
+  color: var(--ink);
 }

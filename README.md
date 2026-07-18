@@ -1,6 +1,6 @@
-# Meridian Ledger
+# Investment Tracker / Paper Trader
 
-Local investment tracker and paper trader. Track real holdings with manual cost basis, or practice with virtual cash, market/limit orders, and a full ledger — priced with Yahoo Finance via `yfinance`.
+Personal local tracker for real holdings and paper accounts. Quotes via `yfinance`.
 
 ## Stack
 
@@ -41,7 +41,7 @@ Starts the local Flask server and opens a pywebview window on the same URL.
 
 | Type | Behavior |
 |------|----------|
-| **Real** | Manual buy/sell with price, timestamp, and fees. No spendable cash; optional reference cash for P&L context. |
+| **Real** | Manual buy/sell with price, timestamp, and fees. No spendable cash balance. |
 | **Paper** | Starting cash, market/limit orders filled against live quotes, deposits/withdrawals. |
 
 ## Data

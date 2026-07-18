@@ -1,14 +1,12 @@
 document.addEventListener("DOMContentLoaded", () => {
   const typeRadios = document.querySelectorAll('input[name="type"]');
   const paperFields = document.getElementById("paper-fields");
-  const realFields = document.getElementById("real-fields");
 
   function syncAccountTypeFields() {
     const selected = document.querySelector('input[name="type"]:checked');
     if (!selected) return;
     const isPaper = selected.value === "paper";
     if (paperFields) paperFields.hidden = !isPaper;
-    if (realFields) realFields.hidden = isPaper;
   }
 
   typeRadios.forEach((el) => el.addEventListener("change", syncAccountTypeFields));

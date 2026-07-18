@@ -10,13 +10,6 @@
       <a href="{{ url_for('pages.account_detail', account_id=account.id) }}">{{ account.name }}</a>
     </div>
     <h1>Buy</h1>
-    <p class="muted">
-      {% if account.type == 'real' %}
-        Record a purchase with average price, shares, and optional fees.
-      {% else %}
-        Place a market or limit buy against available cash (<span data-money="{{ account.cash_balance }}"></span>).
-      {% endif %}
-    </p>
   </div>
 </header>
 

@@ -1,4 +1,4 @@
-"""Launch Meridian Ledger in a desktop window via pywebview."""
+"""Launch the investment tracker in a desktop window via pywebview."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ def main() -> None:
         ) from exc
 
     webview.create_window(
-        "Meridian Ledger",
+        "Investment Tracker",
         URL,
         width=1180,
         height=800,

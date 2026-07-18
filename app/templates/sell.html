@@ -10,13 +10,6 @@
       <a href="{{ url_for('pages.account_detail', account_id=account.id) }}">{{ account.name }}</a>
     </div>
     <h1>Sell</h1>
-    <p class="muted">
-      {% if account.type == 'real' %}
-        Record an exit; realized P&amp;L and time held are calculated automatically.
-      {% else %}
-        Place a market or limit sell against an open position.
-      {% endif %}
-    </p>
   </div>
 </header>
 
@@ -24,8 +17,7 @@
   {% if not account.positions %}
   <div class="empty">
     <h3>Nothing to sell</h3>
-    <p>This account has no open positions.</p>
-    <a class="btn btn-primary" href="{{ url_for('pages.buy', account_id=account.id) }}">Buy first</a>
+    <a class="btn btn-primary" href="{{ url_for('pages.buy', account_id=account.id) }}">Buy</a>
   </div>
   {% else %}
   <form

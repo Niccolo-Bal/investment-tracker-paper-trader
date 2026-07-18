@@ -25,7 +25,6 @@ class Account(db.Model):
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     type: Mapped[str] = mapped_column(String(16), nullable=False)  # real | paper
     cash_balance: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
-    reference_cash: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )

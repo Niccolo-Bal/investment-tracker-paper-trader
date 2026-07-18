@@ -10,7 +10,6 @@
       <a href="{{ url_for('pages.account_detail', account_id=account.id) }}">{{ account.name }}</a>
     </div>
     <h1>Ledger</h1>
-    <p class="muted">All current and past transactions for this account.</p>
   </div>
   <div class="account-actions">
     <a class="btn btn-secondary" href="{{ url_for('pages.account_detail', account_id=account.id) }}">Back to account</a>
@@ -61,7 +60,6 @@
   {% else %}
   <div class="empty">
     <h3>No transactions</h3>
-    <p>{% if filter_type %}Nothing matches this filter.{% else %}Activity will show up once you trade.{% endif %}</p>
   </div>
   {% endif %}
 </section>

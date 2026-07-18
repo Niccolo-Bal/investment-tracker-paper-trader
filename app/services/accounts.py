@@ -10,7 +10,6 @@ def create_account(
     name: str,
     account_type: str,
     starting_cash: float = 0.0,
-    reference_cash: float = 0.0,
 ) -> Account:
     if account_type not in ("real", "paper"):
         raise ValueError("Account type must be 'real' or 'paper'")
@@ -22,7 +21,6 @@ def create_account(
         name=name,
         type=account_type,
         cash_balance=float(starting_cash) if account_type == "paper" else 0.0,
-        reference_cash=float(reference_cash) if account_type == "real" else 0.0,
     )
     db.session.add(account)
 
@@ -50,6 +48,11 @@ def list_accounts() -> list[Account]:
 
 def get_account(account_id: int) -> Account | None:
     return db.session.get(Account, account_id)
+
+
+def delete_account(account: Account) -> None:
+    db.session.delete(account)
+    db.session.commit()
 
 
 def serialize_position(position: Position, quote: dict | None = None) -> dict:
@@ -81,7 +84,9 @@ def account_summary(account: Account) -> dict:
     positions_data = []
     holdings_value = 0.0
     cost_basis_total = 0.0
+    day_change = 0.0
     priced_all = True
+    day_priced_all = True
 
     for position in account.positions:
         if position.shares <= 0:
@@ -94,29 +99,14 @@ def account_summary(account: Account) -> dict:
             holdings_value += row["market_value"]
         else:
             priced_all = False
+        if row["day_change"] is not None:
+            day_change += row["day_change"] * position.shares
+        else:
+            day_priced_all = False
 
     cash = account.cash_balance if account.is_paper else 0.0
     equity = holdings_value + cash if priced_all or not symbols else None
-
-    if account.is_paper:
-        net_capital = _net_deposits(account)
-        total_pnl = (equity - net_capital) if equity is not None else None
-        total_pnl_pct = (
-            (total_pnl / net_capital * 100.0) if total_pnl is not None and net_capital else None
-        )
-        reference = net_capital
-        invested = net_capital
-    else:
-        reference = account.reference_cash
-        total_pnl = (holdings_value - cost_basis_total) if priced_all or not symbols else None
-        total_pnl_pct = (
-            (total_pnl / cost_basis_total * 100.0)
-            if total_pnl is not None and cost_basis_total
-            else None
-        )
-        invested = cost_basis_total
-
-    realized = (
+    realized = float(
         db.session.query(db.func.coalesce(db.func.sum(Transaction.realized_pnl), 0.0))
         .filter(
             Transaction.account_id == account.id,
@@ -124,6 +114,40 @@ def account_summary(account: Account) -> dict:
             Transaction.realized_pnl.isnot(None),
         )
         .scalar()
+        or 0.0
+    )
+
+    if account.is_paper:
+        net_capital = _net_deposits(account)
+        total_pnl = (equity - net_capital) if equity is not None else None
+        total_pnl_pct = (
+            (total_pnl / net_capital * 100.0) if total_pnl is not None and net_capital else None
+        )
+        invested = net_capital
+    else:
+        buy_fees = sum(
+            tx.fees for tx in account.transactions if tx.type == "buy"
+        )
+        invested = sum(
+            (tx.price or 0.0) * (tx.shares or 0.0) + tx.fees
+            for tx in account.transactions
+            if tx.type == "buy"
+        )
+        total_pnl = (
+            holdings_value - cost_basis_total + realized - buy_fees
+            if priced_all or not symbols
+            else None
+        )
+        total_pnl_pct = (
+            (total_pnl / invested * 100.0)
+            if total_pnl is not None and invested
+            else None
+        )
+
+    day_change_out = round(day_change, 2) if (day_priced_all or not symbols) else None
+    prev_value = (equity - day_change) if equity is not None and day_change_out is not None else None
+    day_change_pct = (
+        (day_change / prev_value * 100.0) if prev_value else None
     )
 
     return {
@@ -131,7 +155,6 @@ def account_summary(account: Account) -> dict:
         "name": account.name,
         "type": account.type,
         "cash_balance": round(cash, 2),
-        "reference_cash": round(account.reference_cash, 2),
         "holdings_value": round(holdings_value, 2),
         "cost_basis": round(cost_basis_total, 2),
         "equity": round(equity, 2) if equity is not None else None,
@@ -141,8 +164,9 @@ def account_summary(account: Account) -> dict:
         else None,
         "total_pnl": round(total_pnl, 2) if total_pnl is not None else None,
         "total_pnl_pct": round(total_pnl_pct, 2) if total_pnl_pct is not None else None,
-        "realized_pnl": round(float(realized or 0.0), 2),
-        "reference": round(reference, 2) if reference is not None else None,
+        "day_change": day_change_out,
+        "day_change_pct": round(day_change_pct, 2) if day_change_pct is not None else None,
+        "realized_pnl": round(realized, 2),
         "positions": positions_data,
         "created_at": account.created_at.isoformat() if account.created_at else None,
         "open_orders": sum(1 for o in account.orders if o.status == "open"),

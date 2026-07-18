@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from flask import Flask
+from sqlalchemy import inspect, text
 
 from app.models import db
 from app.routes_api import api_bp
@@ -30,5 +31,9 @@ def create_app(db_path: str | None = None) -> Flask:
 
     with app.app_context():
         db.create_all()
+        columns = {column["name"] for column in inspect(db.engine).get_columns("accounts")}
+        if "reference_cash" in columns:
+            with db.engine.begin() as connection:
+                connection.execute(text("ALTER TABLE accounts DROP COLUMN reference_cash"))
 
     return app

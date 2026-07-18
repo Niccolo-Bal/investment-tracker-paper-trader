@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, request
 from app.models import Order, Transaction
 from app.services import accounts as account_svc
 from app.services import trading as trading_svc
+from app.services.history import real_portfolio_history
 from app.services.quotes import get_quotes
 from app.services.trading import TradingError
 
@@ -36,7 +37,6 @@ def create_account():
             name=data.get("name", ""),
             account_type=data.get("type", ""),
             starting_cash=float(data.get("starting_cash") or 0),
-            reference_cash=float(data.get("reference_cash") or 0),
         )
     except (ValueError, TypeError) as exc:
         return _error(str(exc))
@@ -51,6 +51,20 @@ def get_account(account_id: int):
     trading_svc.try_fill_open_orders(account)
     account = account_svc.get_account(account_id)
     return jsonify({"ok": True, "account": account_svc.account_summary(account)})
+
+
+@api_bp.get("/accounts/<int:account_id>/history")
+def account_history(account_id: int):
+    account = account_svc.get_account(account_id)
+    if account is None:
+        return _error("Account not found", 404)
+    if not account.is_real:
+        return _error("Portfolio backtracking is only available for real accounts", 400)
+    try:
+        history = real_portfolio_history(account)
+    except Exception as exc:  # noqa: BLE001 — return market-data failures to the chart
+        return _error(f"Could not load historical prices: {exc}", 502)
+    return jsonify({"ok": True, "history": history})
 
 
 @api_bp.post("/accounts/<int:account_id>/buy")
