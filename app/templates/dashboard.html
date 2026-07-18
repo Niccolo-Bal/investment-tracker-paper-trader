@@ -15,9 +15,6 @@
     <div class="summary-stat">
       <span class="summary-stat__value">
         <span data-money="{{ real_total if real_total is not none else '' }}"></span>
-        {% if real_total_pct is not none %}
-          <span class="summary-stat__sub" data-pct="{{ real_total_pct }}"></span>
-        {% endif %}
       </span>
       <span class="summary-stat__label">Real value</span>
     </div>

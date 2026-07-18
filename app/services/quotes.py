@@ -35,14 +35,6 @@ def get_quotes(symbols: list[str]) -> dict[str, dict[str, Any]]:
     return result
 
 
-def get_price(symbol: str) -> float | None:
-    quotes = get_quotes([symbol])
-    data = quotes.get(symbol.strip().upper())
-    if not data:
-        return None
-    return data.get("price")
-
-
 def _fetch_quotes(symbols: list[str]) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
     for symbol in symbols:

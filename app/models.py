@@ -93,11 +93,13 @@ class Order(db.Model):
     symbol: Mapped[str] = mapped_column(String(32), nullable=False)
     shares: Mapped[float] = mapped_column(Float, nullable=False)
     limit_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # open | processing | filled | cancelled | rejected
     status: Mapped[str] = mapped_column(String(16), default="open", nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )
     filled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     fill_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(String(240), nullable=True)
 
     account: Mapped[Account] = relationship(back_populates="orders")

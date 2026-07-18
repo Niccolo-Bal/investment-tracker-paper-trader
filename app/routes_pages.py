@@ -10,6 +10,22 @@ from app.services.trading import TradingError
 pages_bp = Blueprint("pages", __name__)
 
 
+def _flash_order_status(order: Order) -> None:
+    if order.status == "filled":
+        flash("Order filled.", "success")
+    elif order.status == "rejected":
+        flash(f"Order rejected: {order.error_message}", "error")
+    else:
+        flash("Order queued.", "success")
+
+
+def _flash_processed_orders(result: dict[str, list[dict]]) -> None:
+    if result["filled"]:
+        flash(f"Filled {len(result['filled'])} order(s).", "success")
+    if result["rejected"]:
+        flash(f"Rejected {len(result['rejected'])} order(s).", "error")
+
+
 @pages_bp.get("/")
 def dashboard():
     accounts = account_svc.list_accounts()
@@ -19,11 +35,8 @@ def dashboard():
 
     real_value = 0.0
     real_day_change = 0.0
-    real_pnl = 0.0
-    real_invested = 0.0
     real_priced = True
     real_day_priced = True
-    real_return_priced = True
     for account in real_accounts:
         if account["equity"] is None:
             real_priced = False
@@ -34,23 +47,12 @@ def dashboard():
                 real_day_priced = False
         else:
             real_day_change += account["day_change"]
-        if account["total_pnl"] is None:
-            if account["positions"]:
-                real_return_priced = False
-        else:
-            real_pnl += account["total_pnl"]
-        real_invested += account["invested"] or 0.0
 
     real_total = round(real_value, 2) if real_priced or not real_accounts else None
     real_day = round(real_day_change, 2) if real_day_priced or not real_accounts else None
     prev_real = (real_total - real_day) if real_total is not None and real_day is not None else None
     real_day_pct = (
         round(real_day / prev_real * 100.0, 2) if prev_real else None
-    )
-    real_total_pct = (
-        round(real_pnl / real_invested * 100.0, 2)
-        if real_return_priced and real_invested
-        else None
     )
 
     return render_template(
@@ -59,7 +61,6 @@ def dashboard():
         paper_accounts=paper_accounts,
         has_accounts=bool(summaries),
         real_total=real_total,
-        real_total_pct=real_total_pct,
         real_day_change=real_day,
         real_day_change_pct=real_day_pct,
     )
@@ -86,9 +87,9 @@ def account_detail(account_id: int):
     account = account_svc.get_account(account_id)
     if account is None:
         abort(404)
-    filled = trading_svc.try_fill_open_orders(account)
-    if filled:
-        flash(f"Filled {len(filled)} limit order(s).", "success")
+    processed = trading_svc.process_open_orders(account)
+    if processed["filled"] or processed["rejected"]:
+        _flash_processed_orders(processed)
         account = account_svc.get_account(account_id)
     summary = account_svc.account_summary(account)
     recent = (
@@ -133,7 +134,7 @@ def buy(account_id: int):
                     notes=request.form.get("notes") or None,
                 )
             else:
-                trading_svc.place_paper_order(
+                order = trading_svc.place_paper_order(
                     account,
                     side="buy",
                     order_type=request.form.get("order_type", "market"),
@@ -141,7 +142,9 @@ def buy(account_id: int):
                     shares=float(request.form.get("shares")),
                     limit_price=request.form.get("limit_price") or None,
                 )
-            flash("Buy submitted.", "success")
+                _flash_order_status(order)
+            if account.is_real:
+                flash("Buy recorded.", "success")
             return redirect(url_for("pages.account_detail", account_id=account.id))
         except (TradingError, ValueError, TypeError) as exc:
             flash(str(exc), "error")
@@ -167,7 +170,7 @@ def sell(account_id: int):
                     notes=request.form.get("notes") or None,
                 )
             else:
-                trading_svc.place_paper_order(
+                order = trading_svc.place_paper_order(
                     account,
                     side="sell",
                     order_type=request.form.get("order_type", "market"),
@@ -175,7 +178,9 @@ def sell(account_id: int):
                     shares=float(request.form.get("shares")),
                     limit_price=request.form.get("limit_price") or None,
                 )
-            flash("Sell submitted.", "success")
+                _flash_order_status(order)
+            if account.is_real:
+                flash("Sell recorded.", "success")
             return redirect(url_for("pages.account_detail", account_id=account.id))
         except (TradingError, ValueError, TypeError) as exc:
             flash(str(exc), "error")
@@ -230,9 +235,9 @@ def orders(account_id: int):
         abort(404)
     if not account.is_paper:
         abort(404)
-    filled = trading_svc.try_fill_open_orders(account)
-    if filled:
-        flash(f"Filled {len(filled)} limit order(s).", "success")
+    processed = trading_svc.process_open_orders(account)
+    if processed["filled"] or processed["rejected"]:
+        _flash_processed_orders(processed)
     if request.method == "POST":
         action = request.form.get("action")
         try:
@@ -240,15 +245,15 @@ def orders(account_id: int):
                 trading_svc.cancel_order(account, int(request.form.get("order_id")))
                 flash("Order cancelled.", "success")
             else:
-                trading_svc.place_paper_order(
+                order = trading_svc.place_paper_order(
                     account,
                     side=request.form.get("side", "buy"),
-                    order_type="limit",
+                    order_type=request.form.get("order_type", "limit"),
                     symbol=request.form.get("symbol", ""),
                     shares=float(request.form.get("shares")),
-                    limit_price=request.form.get("limit_price"),
+                    limit_price=request.form.get("limit_price") or None,
                 )
-                flash("Limit order placed.", "success")
+                _flash_order_status(order)
             return redirect(url_for("pages.orders", account_id=account.id))
         except (TradingError, ValueError, TypeError) as exc:
             flash(str(exc), "error")

@@ -19,7 +19,7 @@
 
 <section class="section">
   <div class="section__head">
-    <h2>Place limit order</h2>
+    <h2>Place order</h2>
   </div>
   <form class="form-panel" method="post" action="{{ url_for('pages.orders', account_id=account.id) }}">
     <input type="hidden" name="action" value="place">
@@ -33,18 +33,25 @@
           </select>
         </div>
         <div>
-          <label for="symbol">Symbol</label>
-          <input id="symbol" name="symbol" type="text" required maxlength="32" style="text-transform:uppercase">
+          <label for="order_type">Order type</label>
+          <select id="order_type" name="order_type">
+            <option value="market">Market</option>
+            <option value="limit">Limit</option>
+          </select>
         </div>
+      </div>
+      <div class="form-row">
+        <label for="symbol">Symbol</label>
+        <input id="symbol" name="symbol" type="text" required maxlength="32" style="text-transform:uppercase">
       </div>
       <div class="form-row two">
         <div>
           <label for="shares">Shares</label>
           <input id="shares" name="shares" type="number" min="0" step="any" required>
         </div>
-        <div>
+        <div id="limit-field" hidden>
           <label for="limit_price">Limit price</label>
-          <input id="limit_price" name="limit_price" type="number" min="0" step="0.0001" required>
+          <input id="limit_price" name="limit_price" type="number" min="0" step="0.0001">
         </div>
       </div>
       <div id="quote-hint" class="help">Enter a symbol to preview the latest price.</div>
@@ -67,6 +74,7 @@
         <tr>
           <th>Created</th>
           <th>Side</th>
+          <th>Type</th>
           <th>Symbol</th>
           <th class="num">Shares</th>
           <th class="num">Limit</th>
@@ -80,10 +88,16 @@
         <tr>
           <td data-datetime="{{ o.created_at }}"></td>
           <td>{{ o.side }}</td>
+          <td>{{ o.order_type }}</td>
           <td><span class="symbol-chip">{{ o.symbol }}</span></td>
           <td class="num">{{ '%.4f'|format(o.shares) }}</td>
           <td class="num" data-money="{{ o.limit_price if o.limit_price is not none else '' }}"></td>
-          <td>{{ o.status }}</td>
+          <td>
+            {{ o.status }}
+            {% if o.error_message %}
+              <span class="order-error">{{ o.error_message }}</span>
+            {% endif %}
+          </td>
           <td class="num" data-money="{{ o.fill_price if o.fill_price is not none else '' }}"></td>
           <td>
             {% if o.status == 'open' %}

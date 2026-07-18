@@ -47,7 +47,17 @@
     {% endif %}
     <div class="metric">
       <span class="metric__label">P&amp;L</span>
-      <span class="metric__value" data-signed-money="{{ account.total_pnl if account.total_pnl is not none else '' }}"></span>
+      <span class="metric__value">
+        <span data-signed-money="{{ account.total_pnl if account.total_pnl is not none else '' }}"></span>{% if account.total_pnl_pct is not none %}
+        <span class="metric__sub {% if account.total_pnl_pct > 0 %}pos{% elif account.total_pnl_pct < 0 %}neg{% endif %}">({{ '%+.2f'|format(account.total_pnl_pct) }}%)</span>{% endif %}
+      </span>
+    </div>
+    <div class="metric">
+      <span class="metric__label">Day</span>
+      <span class="metric__value">
+        <span data-signed-money="{{ account.day_change if account.day_change is not none else '' }}"></span>{% if account.day_change_pct is not none %}
+        <span class="metric__sub {% if account.day_change_pct > 0 %}pos{% elif account.day_change_pct < 0 %}neg{% endif %}">({{ '%+.2f'|format(account.day_change_pct) }}%)</span>{% endif %}
+      </span>
     </div>
   </div>
 </section>
@@ -57,6 +67,19 @@
     <h2>{% if account.type == 'real' %}Portfolio value{% else %}Performance{% endif %}</h2>
   </div>
   <div class="chart-panel">
+    <div class="chart-toolbar">
+      <div class="chart-periods" role="tablist" aria-label="Chart time range">
+        <button type="button" class="chart-period" data-period="5d" role="tab">5D</button>
+        <button type="button" class="chart-period" data-period="1m" role="tab">1M</button>
+        <button type="button" class="chart-period" data-period="3m" role="tab">3M</button>
+        <button type="button" class="chart-period" data-period="6m" role="tab">6M</button>
+        <button type="button" class="chart-period" data-period="ytd" role="tab">YTD</button>
+        <button type="button" class="chart-period is-active" data-period="1y" role="tab" aria-selected="true">1Y</button>
+        <button type="button" class="chart-period" data-period="5y" role="tab">5Y</button>
+        <button type="button" class="chart-period" data-period="max" role="tab">MAX</button>
+      </div>
+      <p class="chart-summary muted" id="chart-summary" hidden></p>
+    </div>
     <canvas id="pnl-chart" height="220"></canvas>
   </div>
 </section>
@@ -155,50 +178,161 @@
     const accountId = {{ account.id }};
     const isPaper = {{ 'true' if account.type == 'paper' else 'false' }};
     const canvas = document.getElementById("pnl-chart");
+    const summaryEl = document.getElementById("chart-summary");
+    const periodButtons = Array.from(document.querySelectorAll(".chart-period"));
     if (!canvas || !window.Chart) return;
-    try {
-      let labels;
-      let values;
-      let datasetLabel;
 
+    const PERIODS = ["5d", "1m", "3m", "6m", "ytd", "1y", "5y", "max"];
+    const storageKey = `chart-period:${accountId}`;
+    let activePeriod = localStorage.getItem(storageKey) || "1y";
+    if (!PERIODS.includes(activePeriod)) activePeriod = "1y";
+
+    const datasetLabel = isPaper ? "Cumulative realized P&L" : "Portfolio value";
+    const accent = isPaper ? "#4f46e5" : "#059669";
+    const fill = isPaper ? "rgba(79, 70, 229, 0.10)" : "rgba(5, 150, 105, 0.10)";
+
+    function parseDay(value) {
+      if (value instanceof Date) return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        const [y, m, d] = value.split("-").map(Number);
+        return new Date(y, m - 1, d);
+      }
+      const date = new Date(value);
+      return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    }
+
+    function toDateKey(value) {
+      const date = parseDay(value);
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
+    function addMonths(date, months) {
+      const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      next.setMonth(next.getMonth() + months);
+      return next;
+    }
+
+    function periodCutoff(period, end) {
+      switch (period) {
+        case "5d":
+          return new Date(end.getFullYear(), end.getMonth(), end.getDate() - 7);
+        case "1m":
+          return addMonths(end, -1);
+        case "3m":
+          return addMonths(end, -3);
+        case "6m":
+          return addMonths(end, -6);
+        case "ytd":
+          return new Date(end.getFullYear(), 0, 1);
+        case "1y":
+          return addMonths(end, -12);
+        case "5y":
+          return addMonths(end, -60);
+        default:
+          return null;
+      }
+    }
+
+    function filterPoints(points, period) {
+      if (!points.length || period === "max") return points.slice();
+      if (period === "5d") return points.slice(-5);
+      const end = parseDay(points[points.length - 1].date);
+      const cutoff = periodCutoff(period, end);
+      if (!cutoff) return points.slice();
+      return points.filter((point) => parseDay(point.date) >= cutoff);
+    }
+
+    function formatLabel(dateKey, spanDays) {
+      const date = parseDay(dateKey);
+      if (spanDays <= 45) {
+        return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      }
+      if (spanDays <= 400) {
+        return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "2-digit" });
+      }
+      return date.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+    }
+
+    function buildPaperPoints(transactions) {
+      const sells = (transactions || [])
+        .filter((t) => t.type === "sell" && t.realized_pnl != null)
+        .slice()
+        .sort((a, b) => parseDay(a.timestamp) - parseDay(b.timestamp));
+      if (!sells.length) return [];
+
+      const points = [];
+      let running = 0;
+      const firstDay = parseDay(sells[0].timestamp);
+      const startDay = new Date(firstDay.getFullYear(), firstDay.getMonth(), firstDay.getDate() - 1);
+      points.push({ date: toDateKey(startDay), value: 0 });
+
+      for (const tx of sells) {
+        running += Number(tx.realized_pnl);
+        points.push({
+          date: toDateKey(tx.timestamp),
+          value: Number(running.toFixed(2)),
+        });
+      }
+      return points;
+    }
+
+    function updateSummary(points) {
+      if (!summaryEl) return;
+      if (points.length < 2) {
+        summaryEl.hidden = true;
+        summaryEl.textContent = "";
+        return;
+      }
+      const first = Number(points[0].value);
+      const last = Number(points[points.length - 1].value);
+      const change = last - first;
+      const pct = first !== 0 ? (change / Math.abs(first)) * 100 : null;
+      const sign = change > 0 ? "+" : "";
+      const pctText = pct == null ? "" : ` (${sign}${pct.toFixed(2)}%)`;
+      summaryEl.textContent = `${Fmt.signedMoney(change)}${pctText} over selected range`;
+      summaryEl.classList.toggle("is-up", change > 0);
+      summaryEl.classList.toggle("is-down", change < 0);
+      summaryEl.hidden = false;
+    }
+
+    function syncPeriodButtons(period) {
+      periodButtons.forEach((btn) => {
+        const selected = btn.dataset.period === period;
+        btn.classList.toggle("is-active", selected);
+        btn.setAttribute("aria-selected", selected ? "true" : "false");
+      });
+    }
+
+    const panel = canvas.closest(".chart-panel");
+
+    try {
+      let allPoints = [];
       if (isPaper) {
         const data = await Api.get(`/api/accounts/${accountId}/transactions`);
-        const sells = (data.transactions || [])
-          .filter((t) => t.type === "sell" && t.realized_pnl != null)
-          .slice()
-          .reverse();
-        labels = ["Start"];
-        values = [0];
-        let running = 0;
-        for (const t of sells) {
-          running += Number(t.realized_pnl);
-          labels.push(t.symbol || "Sell");
-          values.push(Number(running.toFixed(2)));
-        }
-        datasetLabel = "Cumulative realized P&L";
-      } else {
-        const data = await Api.get(`/api/accounts/${accountId}/history`);
-        const points = data.history?.points || [];
-        if (!points.length) {
-          canvas.parentElement.innerHTML = '<p class="muted">No dated trades to chart.</p>';
+        allPoints = buildPaperPoints(data.transactions || []);
+        if (!allPoints.length) {
+          panel.innerHTML = '<p class="muted">No realized trades to chart yet.</p>';
           return;
         }
-        labels = points.map((point) =>
-          new Date(`${point.date}T00:00:00`).toLocaleDateString()
-        );
-        values = points.map((point) => point.value);
-        datasetLabel = "Portfolio value";
+      } else {
+        const data = await Api.get(`/api/accounts/${accountId}/history`);
+        allPoints = data.history?.points || [];
+        if (!allPoints.length) {
+          panel.innerHTML = '<p class="muted">No dated trades to chart.</p>';
+          return;
+        }
       }
 
-      const accent = isPaper ? "#4f46e5" : "#059669";
-      const fill = isPaper ? "rgba(79, 70, 229, 0.10)" : "rgba(5, 150, 105, 0.10)";
-      new Chart(canvas, {
+      const chart = new Chart(canvas, {
         type: "line",
         data: {
-          labels,
+          labels: [],
           datasets: [{
             label: datasetLabel,
-            data: values,
+            data: [],
             borderColor: accent,
             backgroundColor: fill,
             fill: true,
@@ -218,6 +352,17 @@
             legend: { display: false },
             tooltip: {
               callbacks: {
+                title: (items) => {
+                  const idx = items[0]?.dataIndex;
+                  const point = chart.$points?.[idx];
+                  if (!point) return items[0]?.label || "";
+                  return parseDay(point.date).toLocaleDateString(undefined, {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  });
+                },
                 label: (context) => `${datasetLabel}: ${Fmt.money(context.parsed.y)}`,
               },
             },
@@ -225,7 +370,12 @@
           scales: {
             x: {
               grid: { display: false },
-              ticks: { color: "#64748b" },
+              ticks: {
+                color: "#64748b",
+                maxRotation: 0,
+                autoSkip: true,
+                maxTicksLimit: 8,
+              },
             },
             y: {
               grid: { color: "rgba(226, 232, 240, 0.8)" },
@@ -237,8 +387,45 @@
           },
         },
       });
+
+      function render(period) {
+        const points = filterPoints(allPoints, period);
+        syncPeriodButtons(period);
+        if (!points.length) {
+          chart.$points = [];
+          chart.data.labels = [];
+          chart.data.datasets[0].data = [];
+          chart.update("none");
+          if (summaryEl) {
+            summaryEl.hidden = false;
+            summaryEl.textContent = "No data for this period.";
+            summaryEl.classList.remove("is-up", "is-down");
+          }
+          return;
+        }
+        const first = parseDay(points[0].date);
+        const last = parseDay(points[points.length - 1].date);
+        const spanDays = Math.max(1, Math.round((last - first) / 86400000));
+        chart.$points = points;
+        chart.data.labels = points.map((point) => formatLabel(point.date, spanDays));
+        chart.data.datasets[0].data = points.map((point) => point.value);
+        chart.data.datasets[0].pointRadius =
+          isPaper || points.length <= 40 ? (isPaper ? 3 : 2) : 0;
+        chart.update("none");
+        updateSummary(points);
+      }
+
+      periodButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          activePeriod = btn.dataset.period;
+          localStorage.setItem(storageKey, activePeriod);
+          render(activePeriod);
+        });
+      });
+
+      render(activePeriod);
     } catch (err) {
-      canvas.parentElement.innerHTML = `<p class="muted">Chart unavailable: ${err.message}</p>`;
+      panel.innerHTML = `<p class="muted">Chart unavailable: ${err.message}</p>`;
     }
   })();
 </script>

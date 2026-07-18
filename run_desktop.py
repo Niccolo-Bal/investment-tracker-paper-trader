@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 import urllib.error
@@ -10,7 +11,7 @@ import urllib.request
 from app import create_app
 
 HOST = "127.0.0.1"
-PORT = 5000
+PORT = int(os.environ.get("APP_PORT", "5000"))
 URL = f"http://{HOST}:{PORT}"
 
 
@@ -30,11 +31,20 @@ def _wait_for_server(timeout: float = 15.0) -> None:
     raise RuntimeError("Flask server did not start in time")
 
 
+def _server_is_running() -> bool:
+    try:
+        with urllib.request.urlopen(URL, timeout=1) as resp:
+            return resp.status < 500
+    except (urllib.error.URLError, TimeoutError):
+        return False
+
+
 def main() -> None:
-    app = create_app()
-    thread = threading.Thread(target=_run_flask, args=(app,), daemon=True)
-    thread.start()
-    _wait_for_server()
+    if not _server_is_running():
+        app = create_app()
+        thread = threading.Thread(target=_run_flask, args=(app,), daemon=True)
+        thread.start()
+        _wait_for_server()
 
     try:
         import webview

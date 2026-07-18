@@ -73,6 +73,14 @@
   border-color: #4338ca;
 }
 
+.account-theme-real .chart-period.is-active {
+  color: var(--real-accent);
+}
+
+.account-theme-paper .chart-period.is-active {
+  color: var(--paper-accent);
+}
+
 .symbol-chip {
   display: inline-block;
   font-family: var(--font-mono);

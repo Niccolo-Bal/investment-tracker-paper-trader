@@ -21,6 +21,7 @@ build/
 
 # App data
 *.db
+*.log
 instance/
 .env
 .env.*
@@ -32,3 +33,6 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# README (temp)
+README.md

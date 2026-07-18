@@ -23,6 +23,7 @@ def create_app(db_path: str | None = None) -> Flask:
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = "local-dev-only"
+    app.config["TEMPLATES_AUTO_RELOAD"] = True
 
     db.init_app(app)
 
@@ -35,5 +36,13 @@ def create_app(db_path: str | None = None) -> Flask:
         if "reference_cash" in columns:
             with db.engine.begin() as connection:
                 connection.execute(text("ALTER TABLE accounts DROP COLUMN reference_cash"))
+        order_columns = {
+            column["name"] for column in inspect(db.engine).get_columns("orders")
+        }
+        if "error_message" not in order_columns:
+            with db.engine.begin() as connection:
+                connection.execute(
+                    text("ALTER TABLE orders ADD COLUMN error_message VARCHAR(240)")
+                )
 
     return app

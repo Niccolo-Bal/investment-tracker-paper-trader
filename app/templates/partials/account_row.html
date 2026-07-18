@@ -6,9 +6,6 @@
     <span class="account-row__stat-label">Value</span>
     <span class="account-row__stat-value">
       <span data-money="{{ account.equity if account.equity is not none else '' }}"></span>
-      {% if account.total_pnl_pct is not none %}
-        <span class="account-row__stat-sub" data-pct="{{ account.total_pnl_pct }}"></span>
-      {% endif %}
     </span>
   </div>
   <div>

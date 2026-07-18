@@ -48,7 +48,7 @@ def get_account(account_id: int):
     account = account_svc.get_account(account_id)
     if account is None:
         return _error("Account not found", 404)
-    trading_svc.try_fill_open_orders(account)
+    trading_svc.process_open_orders(account)
     account = account_svc.get_account(account_id)
     return jsonify({"ok": True, "account": account_svc.account_summary(account)})
 
@@ -93,9 +93,7 @@ def buy(account_id: int):
             shares=float(data.get("shares")),
             limit_price=data.get("limit_price"),
         )
-        if isinstance(result, Order):
-            return jsonify({"ok": True, "order": trading_svc.serialize_order(result)})
-        return jsonify({"ok": True, "transaction": account_svc.serialize_transaction(result)})
+        return jsonify({"ok": True, "order": trading_svc.serialize_order(result)})
     except (TradingError, ValueError, TypeError) as exc:
         return _error(str(exc))
 
@@ -126,9 +124,7 @@ def sell(account_id: int):
             shares=float(data.get("shares")),
             limit_price=data.get("limit_price"),
         )
-        if isinstance(result, Order):
-            return jsonify({"ok": True, "order": trading_svc.serialize_order(result)})
-        return jsonify({"ok": True, "transaction": account_svc.serialize_transaction(result)})
+        return jsonify({"ok": True, "order": trading_svc.serialize_order(result)})
     except (TradingError, ValueError, TypeError) as exc:
         return _error(str(exc))
 
@@ -170,7 +166,7 @@ def orders(account_id: int):
     account = account_svc.get_account(account_id)
     if account is None:
         return _error("Account not found", 404)
-    trading_svc.try_fill_open_orders(account)
+    trading_svc.process_open_orders(account)
     rows = (
         Order.query.filter_by(account_id=account.id)
         .order_by(Order.created_at.desc())
@@ -194,9 +190,7 @@ def create_order(account_id: int):
             shares=float(data.get("shares")),
             limit_price=data.get("limit_price"),
         )
-        if isinstance(result, Order):
-            return jsonify({"ok": True, "order": trading_svc.serialize_order(result)}), 201
-        return jsonify({"ok": True, "transaction": account_svc.serialize_transaction(result)}), 201
+        return jsonify({"ok": True, "order": trading_svc.serialize_order(result)}), 201
     except (TradingError, ValueError, TypeError) as exc:
         return _error(str(exc))
 

@@ -439,12 +439,84 @@ textarea:focus {
   border: 1px solid var(--slate-200);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 0.9rem 1rem 0.65rem;
+  padding: 0.75rem 1rem 0.65rem;
+}
+
+.chart-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem 1rem;
+  margin-bottom: 0.55rem;
+}
+
+.chart-periods {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  padding: 0.15rem;
+  background: var(--slate-100);
+  border: 1px solid var(--slate-200);
+  border-radius: 7px;
+}
+
+.chart-period {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-secondary);
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  padding: 0.4rem 0.55rem;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.chart-period:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.chart-period.is-active {
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.chart-summary {
+  margin: 0;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.chart-summary.is-up {
+  color: var(--success);
+}
+
+.chart-summary.is-down {
+  color: var(--danger);
 }
 
 .chart-panel canvas {
   width: 100% !important;
   max-height: 260px;
+}
+
+@media (max-width: 560px) {
+  .chart-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .chart-periods {
+    width: 100%;
+  }
 }
 
 .toolbar {
@@ -463,6 +535,15 @@ textarea:focus {
   border-radius: var(--radius);
   font-size: 0.88rem;
   font-variant-numeric: tabular-nums;
+}
+
+.order-error {
+  display: block;
+  max-width: 15rem;
+  margin-top: 0.15rem;
+  color: var(--danger);
+  font-size: 0.72rem;
+  white-space: normal;
 }
 
 @media (max-width: 900px) {

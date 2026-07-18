@@ -169,7 +169,9 @@ def account_summary(account: Account) -> dict:
         "realized_pnl": round(realized, 2),
         "positions": positions_data,
         "created_at": account.created_at.isoformat() if account.created_at else None,
-        "open_orders": sum(1 for o in account.orders if o.status == "open"),
+        "open_orders": sum(
+            1 for o in account.orders if o.status in ("open", "processing")
+        ),
     }
 
 

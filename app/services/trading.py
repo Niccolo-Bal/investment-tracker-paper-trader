@@ -4,7 +4,7 @@ from datetime import datetime
 
 from app.models import Account, Order, Position, Transaction, db, utcnow
 from app.services.accounts import parse_timestamp
-from app.services.quotes import get_price, get_quotes
+from app.services.quotes import get_quotes
 
 
 class TradingError(Exception):
@@ -158,7 +158,7 @@ def place_paper_order(
     symbol: str,
     shares: float,
     limit_price: float | None = None,
-) -> Order | Transaction:
+) -> Order:
     if not account.is_paper:
         raise TradingError("This endpoint is for paper accounts")
     side = side.lower()
@@ -171,20 +171,14 @@ def place_paper_order(
     if shares <= 0:
         raise TradingError("Shares must be positive")
     symbol = symbol.strip().upper()
+    if not symbol:
+        raise TradingError("Symbol is required")
 
-    if order_type == "market":
-        price = get_price(symbol)
-        if price is None:
-            raise TradingError(f"Could not get market price for {symbol}")
-        if side == "buy":
-            tx = _apply_buy(account, symbol, shares, price, 0.0, utcnow())
-        else:
-            tx = _apply_sell(account, symbol, shares, price, 0.0, utcnow())
-        db.session.commit()
-        return tx
-
-    if limit_price is None or float(limit_price) <= 0:
-        raise TradingError("Limit price is required for limit orders")
+    normalized_limit: float | None = None
+    if order_type == "limit":
+        if limit_price is None or float(limit_price) <= 0:
+            raise TradingError("Limit price is required for limit orders")
+        normalized_limit = float(limit_price)
 
     if side == "sell":
         position = Position.query.filter_by(account_id=account.id, symbol=symbol).first()
@@ -194,7 +188,7 @@ def place_paper_order(
                 Order.account_id == account.id,
                 Order.symbol == symbol,
                 Order.side == "sell",
-                Order.status == "open",
+                Order.status.in_(("open", "processing")),
             )
             .scalar()
         )
@@ -202,17 +196,32 @@ def place_paper_order(
         if available < shares:
             raise TradingError("Not enough shares available for this sell order")
 
+    if side == "buy" and order_type == "limit":
+        reserved_cash = sum(
+            open_order.shares * float(open_order.limit_price or 0.0)
+            for open_order in Order.query.filter(
+                Order.account_id == account.id,
+                Order.side == "buy",
+                Order.order_type == "limit",
+                Order.status.in_(("open", "processing")),
+            ).all()
+        )
+        if account.cash_balance - reserved_cash < shares * normalized_limit:
+            raise TradingError("Insufficient unreserved cash for this limit order")
+
     order = Order(
         account_id=account.id,
         side=side,
-        order_type="limit",
+        order_type=order_type,
         symbol=symbol,
         shares=shares,
-        limit_price=float(limit_price),
+        limit_price=normalized_limit,
         status="open",
     )
     db.session.add(order)
     db.session.commit()
+    process_open_orders(account, order_ids={order.id})
+    db.session.refresh(order)
     return order
 
 
@@ -220,10 +229,19 @@ def cancel_order(account: Account, order_id: int) -> Order:
     order = db.session.get(Order, order_id)
     if order is None or order.account_id != account.id:
         raise TradingError("Order not found")
-    if order.status != "open":
+    cancelled = (
+        Order.query.filter(
+            Order.id == order_id,
+            Order.account_id == account.id,
+            Order.status == "open",
+        )
+        .update({"status": "cancelled"}, synchronize_session=False)
+    )
+    if cancelled != 1:
+        db.session.rollback()
         raise TradingError("Only open orders can be cancelled")
-    order.status = "cancelled"
     db.session.commit()
+    order = db.session.get(Order, order_id)
     return order
 
 
@@ -261,41 +279,53 @@ def adjust_cash(account: Account, amount: float, action: str) -> Transaction:
     return tx
 
 
-def try_fill_open_orders(account: Account) -> list[dict]:
-    """Attempt to fill open limit orders against current quotes."""
+def process_open_orders(
+    account: Account, order_ids: set[int] | None = None
+) -> dict[str, list[dict]]:
+    """Check and execute eligible paper orders using current quotes."""
     if not account.is_paper:
-        return []
+        return {"filled": [], "rejected": []}
 
-    open_orders = (
-        Order.query.filter_by(account_id=account.id, status="open")
-        .order_by(Order.created_at.asc())
-        .all()
-    )
+    query = Order.query.filter_by(account_id=account.id, status="open")
+    if order_ids is not None:
+        query = query.filter(Order.id.in_(order_ids))
+    open_orders = query.order_by(Order.created_at.asc(), Order.id.asc()).all()
     if not open_orders:
-        return []
+        return {"filled": [], "rejected": []}
 
     symbols = list({o.symbol for o in open_orders})
     quotes = get_quotes(symbols)
     filled: list[dict] = []
+    rejected: list[dict] = []
 
     for order in open_orders:
+        order_id = order.id
         quote = quotes.get(order.symbol, {})
         price = quote.get("price")
-        if price is None or order.limit_price is None:
+        if price is None:
             continue
 
-        should_fill = False
-        if order.side == "buy" and price <= order.limit_price:
-            should_fill = True
-            fill_price = min(price, order.limit_price)
-        elif order.side == "sell" and price >= order.limit_price:
-            should_fill = True
-            fill_price = max(price, order.limit_price)
-        else:
-            continue
+        fill_price = float(price)
+        if order.order_type == "limit":
+            if order.limit_price is None:
+                continue
+            if order.side == "buy" and fill_price > order.limit_price:
+                continue
+            if order.side == "sell" and fill_price < order.limit_price:
+                continue
 
-        if not should_fill:
+        # Claim atomically so the web process and worker cannot fill it twice.
+        claimed = (
+            Order.query.filter(Order.id == order_id, Order.status == "open")
+            .update(
+                {"status": "processing", "error_message": None},
+                synchronize_session=False,
+            )
+        )
+        if claimed != 1:
+            db.session.rollback()
             continue
+        order.status = "processing"
 
         try:
             if order.side == "buy":
@@ -314,13 +344,54 @@ def try_fill_open_orders(account: Account) -> list[dict]:
                     "fill_price": fill_price,
                 }
             )
-        except TradingError:
-            # Leave open if e.g. insufficient cash at fill time
-            continue
+            db.session.commit()
+        except TradingError as exc:
+            db.session.rollback()
+            error_message = str(exc)[:240]
+            Order.query.filter(
+                Order.id == order_id, Order.status == "open"
+            ).update(
+                {"status": "rejected", "error_message": error_message},
+                synchronize_session=False,
+            )
+            db.session.commit()
+            order = db.session.get(Order, order_id)
+            rejected.append(
+                {
+                    "id": order.id,
+                    "symbol": order.symbol,
+                    "side": order.side,
+                    "reason": error_message,
+                }
+            )
+        except Exception:
+            db.session.rollback()
+            raise
 
-    if filled:
-        db.session.commit()
-    return filled
+    return {"filled": filled, "rejected": rejected}
+
+
+def process_all_open_orders() -> dict[str, int]:
+    """Process all accounts with queued paper orders."""
+    account_ids = [
+        row[0]
+        for row in (
+            db.session.query(Order.account_id)
+            .join(Account, Account.id == Order.account_id)
+            .filter(Account.type == "paper", Order.status == "open")
+            .distinct()
+            .all()
+        )
+    ]
+    totals = {"accounts": len(account_ids), "filled": 0, "rejected": 0}
+    for account_id in account_ids:
+        account = db.session.get(Account, account_id)
+        if account is None:
+            continue
+        result = process_open_orders(account)
+        totals["filled"] += len(result["filled"])
+        totals["rejected"] += len(result["rejected"])
+    return totals
 
 
 def serialize_order(order: Order) -> dict:
@@ -335,4 +406,5 @@ def serialize_order(order: Order) -> dict:
         "created_at": order.created_at.isoformat() if order.created_at else None,
         "filled_at": order.filled_at.isoformat() if order.filled_at else None,
         "fill_price": order.fill_price,
+        "error_message": order.error_message,
     }
