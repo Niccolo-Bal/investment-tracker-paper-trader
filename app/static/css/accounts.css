@@ -1,0 +1,74 @@
+.account-theme-real .metric {
+  border-top-color: var(--real-accent);
+}
+
+.account-theme-paper .metric {
+  border-top-color: var(--paper-accent);
+}
+
+.account-row.account-theme-real {
+  border-left-color: var(--real-accent);
+}
+
+.account-row.account-theme-paper {
+  border-left-color: var(--paper-accent);
+}
+
+.account-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.account-header h1 {
+  margin: 0.35rem 0 0.25rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 3.5vw, 2.4rem);
+  color: var(--navy-950);
+}
+
+.account-header__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--slate-500);
+}
+
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.account-theme-real .btn-primary {
+  background: var(--real-accent);
+  border-color: var(--real-accent);
+}
+
+.account-theme-real .btn-primary:hover {
+  background: #18563b;
+  border-color: #18563b;
+}
+
+.account-theme-paper .btn-primary {
+  background: var(--paper-accent);
+  border-color: var(--paper-accent);
+}
+
+.account-theme-paper .btn-primary:hover {
+  background: #2f4175;
+  border-color: #2f4175;
+}
+
+.symbol-chip {
+  display: inline-block;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--navy-900);
+}

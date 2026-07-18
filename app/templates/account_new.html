@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}New account · Meridian Ledger{% endblock %}
+
+{% block content %}
+<section class="page-hero">
+  <h1>New account</h1>
+  <p>Choose real tracking for holdings you already own, or paper trading with virtual cash.</p>
+</section>
+
+<section class="section">
+  <form class="form-panel" method="post" action="{{ url_for('pages.account_new') }}">
+    <div class="form-grid">
+      <div class="form-row">
+        <label>Account type</label>
+        <div class="type-picker">
+          <div class="type-option type-option--real">
+            <input type="radio" name="type" id="type-real" value="real" checked>
+            <label for="type-real">
+              <span class="title">Real</span>
+              <span class="help">Manually log cost basis and exits. No spendable cash wallet.</span>
+            </label>
+          </div>
+          <div class="type-option type-option--paper">
+            <input type="radio" name="type" id="type-paper" value="paper">
+            <label for="type-paper">
+              <span class="title">Paper</span>
+              <span class="help">Start with cash, place market or limit orders against live quotes.</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label for="name">Account name</label>
+        <input id="name" name="name" type="text" required maxlength="120" placeholder="e.g. Brokerage IRA">
+      </div>
+
+      <div id="paper-fields" class="form-row" hidden>
+        <label for="starting_cash">Starting cash</label>
+        <input id="starting_cash" name="starting_cash" type="number" min="0" step="0.01" value="100000">
+        <span class="help">Virtual cash available to buy securities.</span>
+      </div>
+
+      <div id="real-fields" class="form-row">
+        <label for="reference_cash">Reference cash (optional)</label>
+        <input id="reference_cash" name="reference_cash" type="number" min="0" step="0.01" value="0">
+        <span class="help">Used only for P&amp;L context — not a spendable balance.</span>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">Create account</button>
+        <a class="btn btn-secondary" href="{{ url_for('pages.dashboard') }}">Cancel</a>
+      </div>
+    </div>
+  </form>
+</section>
+{% endblock %}

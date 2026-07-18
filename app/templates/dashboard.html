@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Accounts · Meridian Ledger{% endblock %}
+
+{% block content %}
+<section class="page-hero">
+  <h1>Meridian Ledger</h1>
+  <p>Track real holdings and run paper portfolios from one clean desk — priced with live market data.</p>
+  <div class="page-hero__actions">
+    <a class="btn btn-primary" href="{{ url_for('pages.account_new') }}">New account</a>
+  </div>
+</section>
+
+{% if accounts %}
+<section class="section">
+  <div class="metrics">
+    <div class="metric">
+      <span class="metric__label">Accounts</span>
+      <span class="metric__value">{{ accounts|length }}</span>
+    </div>
+    <div class="metric">
+      <span class="metric__label">Combined equity</span>
+      <span class="metric__value" data-money="{{ total_equity }}"></span>
+    </div>
+    <div class="metric">
+      <span class="metric__label">Marked P&amp;L</span>
+      <span class="metric__value" data-signed-money="{{ total_pnl }}"></span>
+    </div>
+    <div class="metric">
+      <span class="metric__label">Open positions</span>
+      <span class="metric__value">{{ open_positions }}</span>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section__head">
+    <h2>Your accounts</h2>
+    <span class="muted">Select an account to trade or review the ledger</span>
+  </div>
+  <div class="account-list">
+    {% for account in accounts %}
+      <a class="account-row account-theme-{{ account.type }}" href="{{ url_for('pages.account_detail', account_id=account.id) }}">
+        <div>
+          <div class="account-row__name">
+            {{ account.name }}
+            <span class="badge badge-{{ account.type }}">{{ account.type }}</span>
+          </div>
+          <div class="account-row__meta">
+            {% if account.type == 'paper' %}
+              Cash <span data-money="{{ account.cash_balance }}"></span> · {{ account.open_orders }} open order{{ '' if account.open_orders == 1 else 's' }}
+            {% else %}
+              Ref. cash <span data-money="{{ account.reference_cash }}"></span> · {{ account.positions|length }} holding{{ '' if account.positions|length == 1 else 's' }}
+            {% endif %}
+          </div>
+        </div>
+        <div>
+          <span class="account-row__stat-label">Equity</span>
+          <span class="account-row__stat-value" data-money="{{ account.equity if account.equity is not none else '' }}"></span>
+        </div>
+        <div>
+          <span class="account-row__stat-label">Holdings</span>
+          <span class="account-row__stat-value" data-money="{{ account.holdings_value }}"></span>
+        </div>
+        <div>
+          <span class="account-row__stat-label">P&amp;L</span>
+          <span class="account-row__stat-value" data-signed-money="{{ account.total_pnl if account.total_pnl is not none else '' }}"></span>
+        </div>
+        <div>
+          <span class="btn btn-secondary btn-sm">Open</span>
+        </div>
+      </a>
+    {% endfor %}
+  </div>
+</section>
+{% else %}
+<section class="section">
+  <div class="empty">
+    <h3>No accounts yet</h3>
+    <p>Create a real account to log holdings, or a paper account to practice with virtual cash.</p>
+    <a class="btn btn-primary" href="{{ url_for('pages.account_new') }}">Create your first account</a>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

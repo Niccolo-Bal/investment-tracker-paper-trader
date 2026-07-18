@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Ledger · {{ account.name }}{% endblock %}
+{% block body_class %}account-theme-{{ account.type }}{% endblock %}
+
+{% block content %}
+<header class="account-header">
+  <div>
+    <div class="account-header__eyebrow">
+      <span class="badge badge-{{ account.type }}">{{ account.type }}</span>
+      <a href="{{ url_for('pages.account_detail', account_id=account.id) }}">{{ account.name }}</a>
+    </div>
+    <h1>Ledger</h1>
+    <p class="muted">All current and past transactions for this account.</p>
+  </div>
+  <div class="account-actions">
+    <a class="btn btn-secondary" href="{{ url_for('pages.account_detail', account_id=account.id) }}">Back to account</a>
+  </div>
+</header>
+
+<section class="section">
+  <div class="toolbar">
+    <a class="btn btn-sm {% if not filter_type %}btn-primary{% else %}btn-secondary{% endif %}" href="{{ url_for('pages.ledger', account_id=account.id) }}">All</a>
+    {% for t in ['buy', 'sell', 'deposit', 'withdraw'] %}
+      <a class="btn btn-sm {% if filter_type == t %}btn-primary{% else %}btn-secondary{% endif %}" href="{{ url_for('pages.ledger', account_id=account.id, type=t) }}">{{ t|capitalize }}</a>
+    {% endfor %}
+  </div>
+
+  {% if transactions %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Type</th>
+          <th>Symbol</th>
+          <th class="num">Shares</th>
+          <th class="num">Price / amount</th>
+          <th class="num">Fees</th>
+          <th class="num">Realized P&amp;L</th>
+          <th>Time held</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in transactions %}
+        <tr>
+          <td data-datetime="{{ t.timestamp }}"></td>
+          <td>{{ t.type }}</td>
+          <td>{% if t.symbol %}<span class="symbol-chip">{{ t.symbol }}</span>{% else %}—{% endif %}</td>
+          <td class="num">{% if t.shares is not none %}{{ '%.4f'|format(t.shares) }}{% else %}—{% endif %}</td>
+          <td class="num" data-money="{{ t.price if t.price is not none else '' }}"></td>
+          <td class="num" data-money="{{ t.fees }}"></td>
+          <td class="num" data-signed-money="{{ t.realized_pnl if t.realized_pnl is not none else '' }}"></td>
+          <td data-duration="{{ t.time_held_seconds if t.time_held_seconds is not none else '' }}"></td>
+          <td>{{ t.notes or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <h3>No transactions</h3>
+    <p>{% if filter_type %}Nothing matches this filter.{% else %}Activity will show up once you trade.{% endif %}</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

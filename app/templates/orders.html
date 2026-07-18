@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Orders · {{ account.name }}{% endblock %}
+{% block body_class %}account-theme-paper{% endblock %}
+
+{% block content %}
+<header class="account-header">
+  <div>
+    <div class="account-header__eyebrow">
+      <span class="badge badge-paper">paper</span>
+      <a href="{{ url_for('pages.account_detail', account_id=account.id) }}">{{ account.name }}</a>
+    </div>
+    <h1>Orders</h1>
+    <p class="muted">Open limit orders are checked against live quotes when you load this page.</p>
+  </div>
+  <div class="account-actions">
+    <a class="btn btn-secondary" href="{{ url_for('pages.buy', account_id=account.id) }}">New buy</a>
+    <a class="btn btn-secondary" href="{{ url_for('pages.sell', account_id=account.id) }}">New sell</a>
+  </div>
+</header>
+
+<section class="section">
+  <div class="section__head">
+    <h2>Place limit order</h2>
+  </div>
+  <form class="form-panel" method="post" action="{{ url_for('pages.orders', account_id=account.id) }}">
+    <input type="hidden" name="action" value="place">
+    <div class="form-grid">
+      <div class="form-row two">
+        <div>
+          <label for="side">Side</label>
+          <select id="side" name="side">
+            <option value="buy">Buy</option>
+            <option value="sell">Sell</option>
+          </select>
+        </div>
+        <div>
+          <label for="symbol">Symbol</label>
+          <input id="symbol" name="symbol" type="text" required maxlength="32" style="text-transform:uppercase">
+        </div>
+      </div>
+      <div class="form-row two">
+        <div>
+          <label for="shares">Shares</label>
+          <input id="shares" name="shares" type="number" min="0" step="any" required>
+        </div>
+        <div>
+          <label for="limit_price">Limit price</label>
+          <input id="limit_price" name="limit_price" type="number" min="0" step="0.0001" required>
+        </div>
+      </div>
+      <div id="quote-hint" class="help">Enter a symbol to preview the latest price.</div>
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">Place order</button>
+      </div>
+    </div>
+  </form>
+</section>
+
+<section class="section">
+  <div class="section__head">
+    <h2>Order history</h2>
+    <span class="muted">{{ orders|length }} total</span>
+  </div>
+  {% if orders %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Created</th>
+          <th>Side</th>
+          <th>Symbol</th>
+          <th class="num">Shares</th>
+          <th class="num">Limit</th>
+          <th>Status</th>
+          <th class="num">Fill</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in orders %}
+        <tr>
+          <td data-datetime="{{ o.created_at }}"></td>
+          <td>{{ o.side }}</td>
+          <td><span class="symbol-chip">{{ o.symbol }}</span></td>
+          <td class="num">{{ '%.4f'|format(o.shares) }}</td>
+          <td class="num" data-money="{{ o.limit_price if o.limit_price is not none else '' }}"></td>
+          <td>{{ o.status }}</td>
+          <td class="num" data-money="{{ o.fill_price if o.fill_price is not none else '' }}"></td>
+          <td>
+            {% if o.status == 'open' %}
+            <form method="post" action="{{ url_for('pages.orders', account_id=account.id) }}" style="display:inline">
+              <input type="hidden" name="action" value="cancel">
+              <input type="hidden" name="order_id" value="{{ o.id }}">
+              <button class="btn btn-danger btn-sm" type="submit">Cancel</button>
+            </form>
+            {% else %}
+            —
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <h3>No orders yet</h3>
+    <p>Limit orders you place will appear here until filled or cancelled.</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

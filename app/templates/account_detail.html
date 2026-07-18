@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block title %}{{ account.name }} · Meridian Ledger{% endblock %}
+{% block body_class %}account-theme-{{ account.type }}{% endblock %}
+
+{% block content %}
+<header class="account-header">
+  <div>
+    <div class="account-header__eyebrow">
+      <span class="badge badge-{{ account.type }}">{{ account.type }}</span>
+      <span>Account</span>
+    </div>
+    <h1>{{ account.name }}</h1>
+    <p class="muted">
+      {% if account.type == 'paper' %}
+        Paper portfolio with live market fills.
+      {% else %}
+        Real holdings tracked by manual cost basis.
+      {% endif %}
+    </p>
+  </div>
+  <div class="account-actions">
+    <a class="btn btn-primary" href="{{ url_for('pages.buy', account_id=account.id) }}">Buy</a>
+    <a class="btn btn-secondary" href="{{ url_for('pages.sell', account_id=account.id) }}">Sell</a>
+    {% if account.type == 'paper' %}
+      <a class="btn btn-secondary" href="{{ url_for('pages.cash', account_id=account.id) }}">Cash</a>
+      <a class="btn btn-secondary" href="{{ url_for('pages.orders', account_id=account.id) }}">Orders</a>
+    {% endif %}
+    <a class="btn btn-secondary" href="{{ url_for('pages.ledger', account_id=account.id) }}">Ledger</a>
+  </div>
+</header>
+
+<section class="section">
+  <div class="metrics">
+    <div class="metric">
+      <span class="metric__label">{% if account.type == 'paper' %}Equity{% else %}Holdings value{% endif %}</span>
+      <span class="metric__value" data-money="{{ account.equity if account.equity is not none else account.holdings_value }}"></span>
+    </div>
+    {% if account.type == 'paper' %}
+    <div class="metric">
+      <span class="metric__label">Cash</span>
+      <span class="metric__value" data-money="{{ account.cash_balance }}"></span>
+    </div>
+    {% else %}
+    <div class="metric">
+      <span class="metric__label">Reference cash</span>
+      <span class="metric__value" data-money="{{ account.reference_cash }}"></span>
+    </div>
+    {% endif %}
+    <div class="metric">
+      <span class="metric__label">Unrealized P&amp;L</span>
+      <span class="metric__value" data-signed-money="{{ account.unrealized_pnl if account.unrealized_pnl is not none else '' }}"></span>
+    </div>
+    <div class="metric">
+      <span class="metric__label">Realized P&amp;L</span>
+      <span class="metric__value" data-signed-money="{{ account.realized_pnl }}"></span>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section__head">
+    <h2>Performance</h2>
+    <span class="muted">Realized P&amp;L from closed trades</span>
+  </div>
+  <div class="chart-panel">
+    <canvas id="pnl-chart" height="220"></canvas>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section__head">
+    <h2>Holdings</h2>
+    <span class="muted">{{ account.positions|length }} open position{{ '' if account.positions|length == 1 else 's' }}</span>
+  </div>
+  {% if account.positions %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th class="num">Shares</th>
+          <th class="num">Avg cost</th>
+          <th class="num">Last</th>
+          <th class="num">Market value</th>
+          <th class="num">Unrealized</th>
+          <th class="num">Day</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in account.positions %}
+        <tr>
+          <td><span class="symbol-chip">{{ p.symbol }}</span></td>
+          <td class="num">{{ '%.4f'|format(p.shares) }}</td>
+          <td class="num" data-money="{{ p.avg_cost }}"></td>
+          <td class="num" data-money="{{ p.price if p.price is not none else '' }}"></td>
+          <td class="num" data-money="{{ p.market_value if p.market_value is not none else '' }}"></td>
+          <td class="num">
+            <span data-signed-money="{{ p.unrealized_pnl if p.unrealized_pnl is not none else '' }}"></span>
+            {% if p.unrealized_pnl_pct is not none %}
+              <span class="muted">(<span data-pct="{{ p.unrealized_pnl_pct }}"></span>)</span>
+            {% endif %}
+          </td>
+          <td class="num" data-pct="{{ p.day_change_pct if p.day_change_pct is not none else '' }}"></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <h3>No holdings yet</h3>
+    <p>{% if account.type == 'paper' %}Place a buy order to put cash to work.{% else %}Record a purchase with your average cost and share count.{% endif %}</p>
+    <a class="btn btn-primary" href="{{ url_for('pages.buy', account_id=account.id) }}">Buy securities</a>
+  </div>
+  {% endif %}
+</section>
+
+<section class="section">
+  <div class="section__head">
+    <h2>Recent activity</h2>
+    <a class="muted" href="{{ url_for('pages.ledger', account_id=account.id) }}">View full ledger</a>
+  </div>
+  {% if recent %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Type</th>
+          <th>Symbol</th>
+          <th class="num">Shares</th>
+          <th class="num">Price</th>
+          <th class="num">P&amp;L</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in recent %}
+        <tr>
+          <td data-datetime="{{ t.timestamp }}"></td>
+          <td>{{ t.type }}</td>
+          <td>{% if t.symbol %}<span class="symbol-chip">{{ t.symbol }}</span>{% else %}—{% endif %}</td>
+          <td class="num">{% if t.shares is not none %}{{ '%.4f'|format(t.shares) }}{% else %}—{% endif %}</td>
+          <td class="num" data-money="{{ t.price if t.price is not none else '' }}"></td>
+          <td class="num" data-signed-money="{{ t.realized_pnl if t.realized_pnl is not none else '' }}"></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <h3>Ledger is empty</h3>
+    <p>Buys, sells, and cash movements will appear here.</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (async function () {
+    const accountId = {{ account.id }};
+    const canvas = document.getElementById("pnl-chart");
+    if (!canvas || !window.Chart) return;
+    try {
+      const data = await Api.get(`/api/accounts/${accountId}/transactions`);
+      const sells = (data.transactions || [])
+        .filter((t) => t.type === "sell" && t.realized_pnl != null)
+        .slice()
+        .reverse();
+      const labels = [];
+      const values = [];
+      let running = 0;
+      if (!sells.length) {
+        labels.push("Start");
+        values.push(0);
+      } else {
+        labels.push("Start");
+        values.push(0);
+        for (const t of sells) {
+          running += Number(t.realized_pnl);
+          labels.push(t.symbol || "Sell");
+          values.push(Number(running.toFixed(2)));
+        }
+      }
+      const accent = document.body.classList.contains("account-theme-paper") ? "#3a4f8c" : "#1f6b4a";
+      new Chart(canvas, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [{
+            label: "Cumulative realized P&L",
+            data: values,
+            borderColor: accent,
+            backgroundColor: "rgba(26, 58, 87, 0.08)",
+            fill: true,
+            tension: 0.25,
+            pointRadius: 3,
+          }],
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: "#6b7c8f" },
+            },
+            y: {
+              ticks: {
+                color: "#6b7c8f",
+                callback: (v) => Fmt.money(v),
+              },
+            },
+          },
+        },
+      });
+    } catch (err) {
+      canvas.parentElement.innerHTML = `<p class="muted">Chart unavailable: ${err.message}</p>`;
+    }
+  })();
+</script>
+{% endblock %}
