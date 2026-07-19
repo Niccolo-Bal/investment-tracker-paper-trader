@@ -64,7 +64,7 @@ python always_on.py
 ```
 
 The browser UI is then available at [http://127.0.0.1:5000](http://127.0.0.1:5000) 
-(I bookmark it), queued market and limit orders continue processing while the UI 
+, queued market and limit orders continue processing while the UI 
 is closed, and the email sender (if enabled) checks whether to send on startup and
 again on fixed intervals. 
 
@@ -100,23 +100,26 @@ accounts after 4:30 PM each Friday in the computer's local timezone. If the
 computer is off or offline then, it sends the first time `always_on` is running
 and email delivery succeeds afterward (including Saturday or later). The email 
 also includes holdings, activity, comparisons against market benchmarks (SPY/QQQ), 
-possible news drivers, and (when `ollama_enabled` is true) a short AI summary.
+possible news drivers, and (when `ollama_enabled` is true) a short AI summary, etc..
+
+To set up the email, you need the sending Gmail account (must be gmail), an app password
+and the receiving email address.
 
 In `config.toml`, the three email fields may be either an environment-variable
 name or a direct value:
 
 ```toml
-email_sender = "MY-GMAIL-SENDER or mysender@gmail.com"
-email_app_password = "Create through Security -> 2fA -> app passwords in Google account"
-email_recipient = "PERSONAL-EMAIL or myemail@company.com"
+email_sender = "MY-GMAIL-SENDER" # or "mysender@gmail.com"
+email_app_password = "abcd efgh ijkl mnop" # Create through Security -> 2fA -> app passwords in Google account
+email_recipient = "my.name@yahoo.com"
 ```
 
 Remember to restart `always_on` after edits.
 
 ### Test email
 
-Once everything is set up, you can force send an email by running this powershell
-command in the repo root:
+Once everything is set up, you can force send an email by running this python script through
+the following powershell command in the repo root:
 
 ```powershell
 @'
@@ -128,8 +131,7 @@ with create_app().app_context():
 '@ | python -
 ```
 
-If Ollama is enabled but unreachable, the email still sends with an
-“AI summary unavailable” note.
+`send_weekly_email(mark_sent=False)` makes sure this doesn't suppress the next email update.
 
 
 ## Basic use
