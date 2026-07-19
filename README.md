@@ -136,7 +136,8 @@ with create_app().app_context():
 
 ## Basic use
 
-For the most part the UI is self-explanatory, but there are two big unobvious distinctions.
+For the most part the UI is self-explanatory, but the distinctions between the two accounts isn't
+super obious.
 
 ***Real accounts*** are for tracking real portfolio performance (presumably your own). Orders
 are placed manually, with average price, timestamp, and volume being placed manually. This allows
