@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import os
 import threading
 import time
 import urllib.error
 import urllib.request
 
 from app import create_app
+from app.config import CONFIG
 
-HOST = "127.0.0.1"
-PORT = int(os.environ.get("APP_PORT", "5000"))
+HOST = CONFIG["host"]
+PORT = CONFIG["port"]
 URL = f"http://{HOST}:{PORT}"
 
 
@@ -19,11 +19,15 @@ def _run_flask(app):
     app.run(host=HOST, port=PORT, debug=False, use_reloader=False, threaded=True)
 
 
-def _wait_for_server(timeout: float = 15.0) -> None:
+def _wait_for_server(
+    timeout: float = CONFIG["desktop_startup_timeout_seconds"],
+) -> None:
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            with urllib.request.urlopen(URL, timeout=1) as resp:
+            with urllib.request.urlopen(
+                URL, timeout=CONFIG["desktop_request_timeout_seconds"]
+            ) as resp:
                 if resp.status < 500:
                     return
         except (urllib.error.URLError, TimeoutError):
@@ -33,7 +37,9 @@ def _wait_for_server(timeout: float = 15.0) -> None:
 
 def _server_is_running() -> bool:
     try:
-        with urllib.request.urlopen(URL, timeout=1) as resp:
+        with urllib.request.urlopen(
+            URL, timeout=CONFIG["desktop_request_timeout_seconds"]
+        ) as resp:
             return resp.status < 500
     except (urllib.error.URLError, TimeoutError):
         return False
@@ -57,9 +63,9 @@ def main() -> None:
     webview.create_window(
         "Investment Tracker",
         URL,
-        width=1180,
-        height=800,
-        min_size=(800, 600),
+        width=CONFIG["desktop_window_width"],
+        height=CONFIG["desktop_window_height"],
+        min_size=(CONFIG["desktop_min_width"], CONFIG["desktop_min_height"]),
     )
     webview.start()
 

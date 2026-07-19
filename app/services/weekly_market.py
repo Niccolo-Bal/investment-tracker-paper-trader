@@ -9,16 +9,17 @@ from typing import Any
 
 import yfinance as yf
 
+from app.config import CONFIG
 from app.models import Account, Transaction
 from app.services.history import _get_symbol_history, _is_nan
 
-BENCHMARKS = ("SPY", "QQQ")
+BENCHMARKS = tuple(CONFIG["benchmarks"])
 _ENRICHMENT_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
-_ENRICHMENT_TTL_SECONDS = 3600.0
+_ENRICHMENT_TTL_SECONDS = CONFIG["enrichment_cache_ttl_seconds"]
 _HISTORY_BAR_CACHE: dict[
     tuple[str, date, date], tuple[float, dict[date, dict[str, float]]]
 ] = {}
-_HISTORY_BAR_TTL_SECONDS = 3600.0
+_HISTORY_BAR_TTL_SECONDS = CONFIG["history_bar_cache_ttl_seconds"]
 
 
 def reporting_period(

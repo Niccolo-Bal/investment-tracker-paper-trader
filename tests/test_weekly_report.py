@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 from datetime import datetime, timedelta
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from app.services import weekly_market as wm
 
@@ -95,6 +96,37 @@ class EnrichmentFallbackTests(unittest.TestCase):
             self.assertEqual(payload["events"], {})
         finally:
             wm.yf.Ticker = original
+
+
+class FeatureFlagTests(unittest.TestCase):
+    def test_disabled_weekly_email_is_never_due(self):
+        from app.services import weekly_report as wr
+
+        with patch.object(wr, "WEEKLY_EMAIL_ENABLED", False):
+            self.assertFalse(wr.is_weekly_email_due())
+
+    def test_ollama_disabled_skips_network(self):
+        from app.services import weekly_report as wr
+
+        with patch.object(wr, "OLLAMA_ENABLED", False):
+            with patch.object(wr.urllib.request, "urlopen") as urlopen:
+                self.assertIsNone(wr.generate_ai_summary("context"))
+                urlopen.assert_not_called()
+
+    def test_send_validates_email_before_collecting_report(self):
+        from app.config import ConfigError
+        from app.services import weekly_report as wr
+
+        with patch.object(wr, "WEEKLY_EMAIL_ENABLED", True):
+            with patch.object(
+                wr,
+                "_require_email_settings",
+                side_effect=ConfigError("Missing environment variable"),
+            ):
+                with patch.object(wr, "collect_real_report") as collect:
+                    with self.assertRaises(ConfigError):
+                        wr.send_weekly_email(mark_sent=False)
+                    collect.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ from pathlib import Path
 from flask import Flask
 from sqlalchemy import inspect, text
 
+from app.config import CONFIG
 from app.models import db
 from app.routes_api import api_bp
 from app.routes_pages import pages_bp
@@ -18,12 +19,12 @@ def create_app(db_path: str | None = None) -> Flask:
     if db_path is None:
         data_dir = Path(__file__).resolve().parent.parent / "instance"
         data_dir.mkdir(parents=True, exist_ok=True)
-        db_path = str(data_dir / "tracker.db")
+        db_path = str(data_dir / CONFIG["database_filename"])
 
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    app.config["SECRET_KEY"] = "local-dev-only"
-    app.config["TEMPLATES_AUTO_RELOAD"] = True
+    app.config["SECRET_KEY"] = CONFIG["secret_key"]
+    app.config["TEMPLATES_AUTO_RELOAD"] = CONFIG["templates_auto_reload"]
 
     db.init_app(app)
 

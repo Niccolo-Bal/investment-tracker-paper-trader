@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import smtplib
 import urllib.error
 import urllib.request
@@ -13,23 +12,26 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
+from app.config import CONFIG, resolve_email_setting
 from app.models import Transaction, db
 from app.services import accounts as account_svc
 from app.services.weekly_market import build_weekly_performance, reporting_period
 
-ENV_FROM = "GMAIL-INVESTMENT-UPDATE-EMAIL"
-ENV_APP_PW = "GMAIL-INVESTMENT-UPDATE-APP-PW"
-ENV_TO = "PERSONAL-EMAIL"
-
 INSTANCE_DIR = Path(__file__).resolve().parents[2] / "instance"
-STAMP_PATH = INSTANCE_DIR / "last_weekly_email.txt"
+STAMP_PATH = INSTANCE_DIR / CONFIG["weekly_email_stamp_filename"]
 
-OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:cloud")
-LOOKBACK_DAYS = max(1, int(os.environ.get("WEEKLY_EMAIL_LOOKBACK_DAYS", "7")))
-WEEKLY_EMAIL_WEEKDAY = int(os.environ.get("WEEKLY_EMAIL_WEEKDAY", "4"))  # Friday
-WEEKLY_EMAIL_HOUR = int(os.environ.get("WEEKLY_EMAIL_HOUR", "16"))
-WEEKLY_EMAIL_MINUTE = int(os.environ.get("WEEKLY_EMAIL_MINUTE", "30"))
+WEEKLY_EMAIL_ENABLED = CONFIG["weekly_email_enabled"]
+OLLAMA_ENABLED = CONFIG["ollama_enabled"]
+OLLAMA_HOST = CONFIG["ollama_host"]
+OLLAMA_MODEL = CONFIG["ollama_model"]
+OLLAMA_TIMEOUT_SECONDS = CONFIG["ollama_timeout_seconds"]
+LOOKBACK_DAYS = CONFIG["weekly_email_lookback_days"]
+WEEKLY_EMAIL_WEEKDAY = CONFIG["weekly_email_weekday"]
+WEEKLY_EMAIL_HOUR = CONFIG["weekly_email_hour"]
+WEEKLY_EMAIL_MINUTE = CONFIG["weekly_email_minute"]
+SMTP_HOST = CONFIG["smtp_host"]
+SMTP_PORT = CONFIG["smtp_port"]
+SMTP_TIMEOUT_SECONDS = CONFIG["smtp_timeout_seconds"]
 
 
 def _local_now(now: datetime | date | None = None) -> datetime:
@@ -79,6 +81,8 @@ def _latest_scheduled_cutoff(now: datetime | date | None = None) -> datetime:
 
 
 def is_weekly_email_due(now: datetime | date | None = None) -> bool:
+    if not WEEKLY_EMAIL_ENABLED:
+        return False
     cutoff = _latest_scheduled_cutoff(now)
     last = _read_stamp()
     return last is None or last < cutoff
@@ -118,22 +122,12 @@ def _tone(value: float | None) -> str:
     return "pos" if value > 0 else "neg"
 
 
-def _require_email_env() -> tuple[str, str, str]:
-    from_addr = (os.environ.get(ENV_FROM) or "").strip()
-    app_pw = (os.environ.get(ENV_APP_PW) or "").strip()
-    to_addr = (os.environ.get(ENV_TO) or "").strip()
-    missing = [
-        name
-        for name, value in (
-            (ENV_FROM, from_addr),
-            (ENV_APP_PW, app_pw),
-            (ENV_TO, to_addr),
-        )
-        if not value
-    ]
-    if missing:
-        raise RuntimeError("Missing email env var(s): " + ", ".join(missing))
-    return from_addr, app_pw, to_addr
+def _require_email_settings() -> tuple[str, str, str]:
+    return (
+        resolve_email_setting("email_sender"),
+        resolve_email_setting("email_app_password"),
+        resolve_email_setting("email_recipient"),
+    )
 
 def collect_real_report(now: datetime | None = None) -> dict[str, Any]:
     """Build structured report data for all real accounts."""
@@ -685,6 +679,8 @@ def format_report_html(report: dict[str, Any], ai_summary: str | None) -> str:
 
 
 def generate_ai_summary(ai_context: str) -> str | None:
+    if not OLLAMA_ENABLED:
+        return None
     prompt = (
         "You are writing a short weekly portfolio note for the account owner.\n"
         "Use ONLY the facts in CONTEXT below. Do not invent prices, news, or causes.\n"
@@ -708,7 +704,9 @@ def generate_ai_summary(ai_context: str) -> str | None:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=180) as response:
+        with urllib.request.urlopen(
+            request, timeout=OLLAMA_TIMEOUT_SECONDS
+        ) as response:
             body = json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, ValueError):
         return None
@@ -717,7 +715,7 @@ def generate_ai_summary(ai_context: str) -> str | None:
 
 
 def send_gmail(subject: str, text_body: str, html_body: str) -> None:
-    from_addr, app_pw, to_addr = _require_email_env()
+    from_addr, app_pw, to_addr = _require_email_settings()
     message = EmailMessage()
     message["Subject"] = subject
     message["From"] = from_addr
@@ -725,17 +723,25 @@ def send_gmail(subject: str, text_body: str, html_body: str) -> None:
     message.set_content(text_body)
     message.add_alternative(html_body, subtype="html")
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=60) as smtp:
+    with smtplib.SMTP_SSL(
+        SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS
+    ) as smtp:
         smtp.login(from_addr, app_pw)
         smtp.send_message(message)
 
 
 def send_weekly_email(*, mark_sent: bool = True) -> str:
     """Collect, summarize, and send the weekly digest."""
+    if not WEEKLY_EMAIL_ENABLED:
+        raise RuntimeError(
+            "Weekly email is disabled (set weekly_email_enabled = true in config.toml)"
+        )
+    # Validate credentials before market/report work or Ollama.
+    from_addr, _app_pw, to_addr = _require_email_settings()
     report = collect_real_report()
     report_text = format_report_text(report)
     ai_context = format_ai_context(report)
-    ai_summary = generate_ai_summary(ai_context)
+    ai_summary = generate_ai_summary(ai_context) if OLLAMA_ENABLED else None
     if ai_summary:
         text_body = f"AI SUMMARY\n{ai_summary}\n\n{report_text}"
     else:
@@ -750,8 +756,8 @@ def send_weekly_email(*, mark_sent: bool = True) -> str:
     if mark_sent:
         mark_weekly_email_sent(today)
     return (
-        f"Weekly email sent to {os.environ.get(ENV_TO)} "
-        f"({len(report['accounts'])} real account(s))"
+        f"Weekly email sent to {to_addr} "
+        f"({len(report['accounts'])} real account(s); from {from_addr})"
     )
 
 

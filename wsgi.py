@@ -1,9 +1,7 @@
-import os
-
 from app import create_app
+from app.config import CONFIG
 
 app = create_app()
 
 if __name__ == "__main__":
-    port = int(os.environ.get("APP_PORT", "5000"))
-    app.run(host="127.0.0.1", port=port, debug=True)
+    app.run(host=CONFIG["host"], port=CONFIG["port"], debug=True)

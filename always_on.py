@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import socket
 import threading
 import time
@@ -11,26 +10,25 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from app import create_app
+from app.config import CONFIG
 from app.models import db
 from app.services.trading import process_all_open_orders
 from app.services.weekly_report import is_weekly_email_due, run_weekly_email_if_due
 
-POLL_SECONDS = max(5, int(os.environ.get("ALWAYS_ON_POLL_SECONDS", "30")))
-EMAIL_RETRY_SECONDS = max(
-    60, int(os.environ.get("WEEKLY_EMAIL_RETRY_SECONDS", "300"))
-)
-HOST = "127.0.0.1"
-PORT = int(os.environ.get("APP_PORT", "5000"))
-SINGLE_INSTANCE_PORT = 47653
+POLL_SECONDS = CONFIG["always_on_poll_seconds"]
+EMAIL_RETRY_SECONDS = CONFIG["weekly_email_retry_seconds"]
+HOST = CONFIG["host"]
+PORT = CONFIG["port"]
+SINGLE_INSTANCE_PORT = CONFIG["single_instance_port"]
 
 
 def _configure_logging() -> logging.Logger:
     instance_dir = Path(__file__).resolve().parent / "instance"
     instance_dir.mkdir(parents=True, exist_ok=True)
     handler = RotatingFileHandler(
-        instance_dir / "always_on.log",
-        maxBytes=500_000,
-        backupCount=2,
+        instance_dir / CONFIG["always_on_log_filename"],
+        maxBytes=CONFIG["log_max_bytes"],
+        backupCount=CONFIG["log_backup_count"],
         encoding="utf-8",
     )
     handler.setFormatter(
@@ -104,6 +102,15 @@ def main() -> None:
     server_thread.start()
     logger.info("Local web app available at http://%s:%s", HOST, PORT)
     logger.info("always_on started; polling every %s seconds", POLL_SECONDS)
+    if CONFIG["weekly_email_enabled"]:
+        logger.info(
+            "Weekly email enabled (Ollama %s)",
+            "on" if CONFIG["ollama_enabled"] else "off",
+        )
+    else:
+        logger.info(
+            "Weekly email disabled; set weekly_email_enabled = true in config.toml to enable"
+        )
     email_thread: threading.Thread | None = None
     last_email_attempt = float("-inf")
     try:
@@ -120,21 +127,22 @@ def main() -> None:
             except Exception:  # noqa: BLE001 — worker must survive transient failures
                 logger.exception("Order-processing cycle failed")
 
-            try:
-                now = time.monotonic()
-                email_idle = email_thread is None or not email_thread.is_alive()
-                retry_ready = now - last_email_attempt >= EMAIL_RETRY_SECONDS
-                if email_idle and retry_ready and is_weekly_email_due():
-                    last_email_attempt = now
-                    email_thread = threading.Thread(
-                        target=_run_weekly_email,
-                        args=(app, logger),
-                        name="weekly-email",
-                        daemon=True,
-                    )
-                    email_thread.start()
-            except Exception:  # noqa: BLE001 — schedule checks must not stop polling
-                logger.exception("Weekly email schedule check failed")
+            if CONFIG["weekly_email_enabled"]:
+                try:
+                    now = time.monotonic()
+                    email_idle = email_thread is None or not email_thread.is_alive()
+                    retry_ready = now - last_email_attempt >= EMAIL_RETRY_SECONDS
+                    if email_idle and retry_ready and is_weekly_email_due():
+                        last_email_attempt = now
+                        email_thread = threading.Thread(
+                            target=_run_weekly_email,
+                            args=(app, logger),
+                            name="weekly-email",
+                            daemon=True,
+                        )
+                        email_thread.start()
+                except Exception:  # noqa: BLE001 — schedule checks must not stop polling
+                    logger.exception("Weekly email schedule check failed")
 
             time.sleep(POLL_SECONDS)
     except KeyboardInterrupt:

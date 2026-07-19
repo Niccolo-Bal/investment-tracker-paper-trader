@@ -5,8 +5,10 @@ from typing import Any
 
 import yfinance as yf
 
+from app.config import CONFIG
+
 _CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
-_CACHE_TTL_SECONDS = 30.0
+_CACHE_TTL_SECONDS = CONFIG["quote_cache_ttl_seconds"]
 
 
 def get_quotes(symbols: list[str]) -> dict[str, dict[str, Any]]:

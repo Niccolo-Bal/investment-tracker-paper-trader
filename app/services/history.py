@@ -8,12 +8,13 @@ from typing import Any
 
 import yfinance as yf
 
+from app.config import CONFIG
 from app.models import Account, Transaction
 
 _HISTORY_CACHE: dict[
     tuple[str, date, date], tuple[float, dict[date, float], dict[date, float]]
 ] = {}
-_HISTORY_CACHE_TTL_SECONDS = 3600.0
+_HISTORY_CACHE_TTL_SECONDS = CONFIG["history_cache_ttl_seconds"]
 
 
 def real_portfolio_history(account: Account) -> dict[str, Any]:

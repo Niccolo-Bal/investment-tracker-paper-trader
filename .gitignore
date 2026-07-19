@@ -25,6 +25,7 @@ build/
 instance/
 .env
 .env.*
+config.toml
 
 # OS / editor
 .DS_Store

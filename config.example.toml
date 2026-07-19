@@ -1,0 +1,97 @@
+# Example runtime settings. Copy to config.toml and edit locally.
+# config.toml is gitignored so secrets can live there if you prefer.
+
+
+
+
+
+### Host/recipient email info: use an environment-variable name or a direct value. ###
+### NEEDED FOR FULL weekly_email_enabled = true FUNCTIONALITY                      ###             
+
+email_sender = "MY-GMAIL-SENDER or mysender@gmail.com"
+email_app_password = "Create through Security -> 2fA -> app passwords in Google account"
+email_recipient = "PERSONAL-EMAIL or myemail@company.com"
+
+
+
+
+
+
+### Weekly email configs ###
+
+
+# Main on/off switches (ollama_enabled for AI summary)
+
+weekly_email_enabled = false
+ollama_enabled = false
+
+
+# Ollama model configurations. 
+# Use `ollama pull {ollama_model}` in bash for setuo. Host port is set to ollama's default
+
+ollama_host = "http://127.0.0.1:11434"
+ollama_model = "gemma4:cloud"
+
+
+
+
+
+### Other Configurations ###
+
+# --- Other email configs --- 
+
+weekly_email_lookback_days = 7
+weekly_email_weekday = 4
+weekly_email_hour = 16
+weekly_email_minute = 30
+ollama_timeout_seconds = 180
+smtp_host = "smtp.gmail.com"
+smtp_port = 465
+smtp_timeout_seconds = 60
+
+
+
+# --- Server / always_on worker ---
+
+host = "127.0.0.1"
+port = 5000
+always_on_poll_seconds = 30
+single_instance_port = 47653
+weekly_email_retry_seconds = 300
+
+
+
+# --- App / storage / logging ---
+
+database_filename = "tracker.db"
+always_on_log_filename = "always_on.log"
+weekly_email_stamp_filename = "last_weekly_email.txt"
+log_max_bytes = 500000
+log_backup_count = 2
+secret_key = "local-dev-only"
+templates_auto_reload = true
+
+
+
+# --- Desktop shell (run_desktop.py) ---
+
+desktop_startup_timeout_seconds = 15.0
+desktop_request_timeout_seconds = 1.0
+desktop_window_width = 1180
+desktop_window_height = 800
+desktop_min_width = 800
+desktop_min_height = 600
+
+
+
+# --- Market data caches ---
+
+quote_cache_ttl_seconds = 30.0
+history_cache_ttl_seconds = 3600.0
+enrichment_cache_ttl_seconds = 3600.0
+history_bar_cache_ttl_seconds = 3600.0
+benchmarks = ["SPY", "QQQ"]
+
+
+
+
